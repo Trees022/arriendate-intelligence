@@ -1,0 +1,23 @@
+{
+  "name": "arriendate-intelligence",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @arriendate/web",
+    "build:web": "npm run build --workspace @arriendate/web",
+    "lint:web": "npm run lint --workspace @arriendate/web",
+    "test:web": "npm run test --workspace @arriendate/web",
+    "test:e2e": "npm run test:e2e --workspace @arriendate/web",
+    "typecheck:web": "npm run typecheck --workspace @arriendate/web"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "supabase": "^2.113.0"
+  }
+}
