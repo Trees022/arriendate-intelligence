@@ -63,9 +63,18 @@ Raw model output, original lead text, prompt bodies, provider error bodies, and 
 
 `supabase/migrations` is authoritative. The extraction migration adds constrained `lead_requirements` and `ai_runs` tables, indexes recent lead runs, installs the update trigger, enables RLS, revokes direct browser-role grants, and documents the no-raw-output policy.
 
+Production-like validation lives separately under `apps/api/tests/postgres`. It applies the SQL to a
+fresh PostgreSQL 17 database with pgvector, loads the synthetic seed, inspects database catalogs and
+role security, and exercises FastAPI transactions and concurrent writes. CI uses the versioned
+pgvector PostgreSQL image rather than the full Supabase service stack; the tests create missing
+Supabase Data API roles and validate their actual grants/RLS behavior.
+
 ### SQLite development fallback
 
 SQLAlchemy creates the portable tables in `.local/arriendate.db` for local and test execution. It validates routes, services, transactions, constraints represented in models, and persistence behavior. It cannot validate PostgreSQL array behavior, PostgreSQL-specific check semantics, triggers, grants, or RLS.
+
+The SQLite and PostgreSQL suites are intentionally distinct. Passing SQLite is not evidence that a
+migration or RLS policy works. See [database validation](database-validation.md) for exact commands.
 
 ## Explicit boundary
 

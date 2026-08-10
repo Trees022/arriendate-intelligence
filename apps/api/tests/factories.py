@@ -37,15 +37,19 @@ async def running_test_client(
     tmp_path: Path,
     *,
     generator: StructuredGenerator | None = None,
+    database_url: str | None = None,
     **settings_overrides: Any,
 ) -> AsyncIterator[AsyncClient]:
-    database_path = (tmp_path / "test.db").as_posix()
-    settings = Settings(
-        database_url=f"sqlite+aiosqlite:///{database_path}",
-        seed_demo_data=True,
-        cors_origins=["http://test.local"],
-        **settings_overrides,
-    )
+    if database_url is None:
+        database_path = (tmp_path / "test.db").as_posix()
+        database_url = f"sqlite+aiosqlite:///{database_path}"
+    settings_values: dict[str, Any] = {
+        "database_url": database_url,
+        "seed_demo_data": True,
+        "cors_origins": ["http://test.local"],
+    }
+    settings_values.update(settings_overrides)
+    settings = Settings(**settings_values)
     app = create_app(settings, structured_generator=generator)
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)

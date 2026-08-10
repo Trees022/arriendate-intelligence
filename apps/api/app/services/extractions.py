@@ -54,6 +54,7 @@ class LeadExtractionService:
             model=self.generator.model,
             prompt_version=PROMPT_VERSION,
         )
+        run_id = run.id
         started = perf_counter()
         request = build_lead_extraction_request(lead.original_request)
 
@@ -62,7 +63,7 @@ class LeadExtractionService:
         except ProviderError as error:
             latency_ms = self._elapsed_ms(started)
             await self.extractions.mark_run_failed(
-                run_id=run.id,
+                run_id=run_id,
                 latency_ms=latency_ms,
                 error_code=error.code,
                 error_message=error.safe_message,
@@ -78,7 +79,7 @@ class LeadExtractionService:
         except ValidationError as error:
             latency_ms = self._elapsed_ms(started)
             await self.extractions.mark_run_failed(
-                run_id=run.id,
+                run_id=run_id,
                 latency_ms=latency_ms,
                 error_code="invalid_model_output",
                 error_message="La salida del proveedor no cumplió el esquema validado",
@@ -104,7 +105,7 @@ class LeadExtractionService:
                 output_cost_per_million=self.settings.ai_output_cost_per_million,
             )
             completed_run = await self.extractions.mark_run_succeeded(
-                run_id=run.id,
+                run_id=run_id,
                 provider=provider_result.provider,
                 model=provider_result.model,
                 provider_request_id=provider_result.provider_request_id,
@@ -117,7 +118,7 @@ class LeadExtractionService:
         except Exception:
             await self.session.rollback()
             await self.extractions.mark_run_failed(
-                run_id=run.id,
+                run_id=run_id,
                 latency_ms=self._elapsed_ms(started),
                 error_code="persistence_error",
                 error_message="No fue posible persistir la extracción validada",

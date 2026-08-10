@@ -109,16 +109,25 @@ ARRIENDATE_AI_MAX_RETRIES=2
 
 Optional `ARRIENDATE_AI_INPUT_COST_PER_MILLION` and `ARRIENDATE_AI_OUTPUT_COST_PER_MILLION` values enable cost estimates. They are configuration, not hard-coded price claims.
 
-### Local Supabase
+### Local Supabase and PostgreSQL validation
 
 When Docker is available:
 
 ```powershell
 npm.cmd exec supabase -- start
-npm.cmd exec supabase -- db reset
+npm.cmd exec supabase -- db reset --local
+$env:ARRIENDATE_TEST_POSTGRES_URL='postgresql+psycopg://postgres:postgres@127.0.0.1:54322/postgres'
+.\.venv\Scripts\python.exe -m pytest apps/api/tests/postgres -q -m postgres
 ```
 
-Then set `ARRIENDATE_DATABASE_URL` to the local PostgreSQL URL printed by Supabase. Migrations create `lead_requirements` and `ai_runs`, enable RLS, and revoke direct `anon`/`authenticated` access.
+The integration suite requires a PostgreSQL URL with permission to create a disposable database.
+It fails instead of falling back when the URL is absent or points to SQLite, applies every migration
+from zero, loads the synthetic seed, validates catalogs/RLS/grants, runs the FastAPI persistence
+path, and drops only its generated database. To run the API itself against the local stack, set
+`ARRIENDATE_DATABASE_URL` to the PostgreSQL URL printed by Supabase.
+
+See [database validation](docs/database-validation.md) for reset commands, environment separation,
+security expectations, and limitations.
 
 ## API in this milestone
 
@@ -147,9 +156,11 @@ An opt-in live run uses the same prompt and JSON Schema as production:
 
 Generated reports are written to the ignored `evals/results/lead_extraction.latest.json`. Live runs require provider environment variables and may incur cost.
 
-Pull requests and pushes to `main` run the same backend/frontend checks through
-`.github/workflows/ci.yml`. CI uses Python 3.12, Node.js 22, SQLite, mocks, and the offline
-fixture evaluation; it does not receive an AI API key or start PostgreSQL/Supabase.
+Pull requests and pushes to `main` run backend, frontend, and production-like database jobs through
+`.github/workflows/ci.yml`. The fast backend job uses SQLite and mocks. The database job uses
+PostgreSQL 17 with pgvector 0.8.2, creates Supabase-compatible test roles, applies migrations from
+zero, validates RLS/grants and seed behavior, and runs the isolated PostgreSQL integration suite.
+No job receives an AI API key or calls a live provider.
 
 Run all checks:
 
@@ -157,7 +168,11 @@ Run all checks:
 # Backend
 .\.venv\Scripts\python.exe -m ruff check apps/api evals/scripts
 .\.venv\Scripts\python.exe -m mypy apps/api/app
-.\.venv\Scripts\python.exe -m pytest apps/api/tests -q
+.\.venv\Scripts\python.exe -m pytest apps/api/tests --ignore=apps/api/tests/postgres -q
+.\.venv\Scripts\python.exe evals\scripts\evaluate_lead_extraction.py --mode fixture
+
+# PostgreSQL/Supabase database layer; requires ARRIENDATE_TEST_POSTGRES_URL
+.\.venv\Scripts\python.exe -m pytest apps/api/tests/postgres -q -m postgres
 
 # Frontend
 npm.cmd run typecheck:web
@@ -184,7 +199,12 @@ npm.cmd run test:e2e
 ## Known limitations
 
 - No live provider evaluation is reproducible without a separately supplied API key; the committed suite uses deterministic fixtures and an HTTP mock of the Responses API contract.
-- Supabase migrations, PostgreSQL arrays, triggers, grants, and RLS still require execution against a real PostgreSQL/Supabase instance. SQLite validates application behavior only.
+- The database suite has been executed against real PostgreSQL 17 with pgvector and CI
+  reproduces that database layer. A hosted Supabase project and the complete local Supabase
+  Auth/PostgREST stack remain unvalidated; CI validates PostgreSQL schema and Supabase role/RLS/grant
+  semantics, not those surrounding services.
+- FastAPI currently uses a privileged direct PostgreSQL connection. A dedicated least-privilege
+  login and organization-aware policies are required before public or multi-tenant deployment.
 - Cost remains `null` unless both provider usage and current per-million prices are configured.
 - Authentication is not implemented. The app is intended for local/internal evaluation and is not ready for public deployment.
 - Matching, RAG, agents, n8n, outbound messaging, and later milestones are intentionally absent.
