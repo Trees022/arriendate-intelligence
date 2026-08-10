@@ -1,0 +1,1 @@
+"""Structured-generation provider adapters."""

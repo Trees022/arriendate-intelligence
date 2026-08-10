@@ -1,15 +1,34 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
-import { getLead } from "../../lib/api";
+import { extractLead, getLead } from "../../lib/api";
 import { formatDate, leadStatusLabel } from "../../lib/format";
+import type { LeadDetail } from "../../lib/types";
+import { AIRunsPanel } from "./AIRunsPanel";
+import { RequirementsPanel } from "./RequirementsPanel";
 
 export function LeadDetailPage() {
   const { id = "" } = useParams();
+  const queryClient = useQueryClient();
+  const queryKey = ["lead", id] as const;
   const query = useQuery({
-    queryKey: ["lead", id],
+    queryKey,
     queryFn: () => getLead(id),
     enabled: Boolean(id),
+  });
+  const extraction = useMutation({
+    mutationFn: () => extractLead(id),
+    onSuccess: (result) => {
+      queryClient.setQueryData<LeadDetail>(queryKey, (current) => current ? ({
+        ...current,
+        status: result.lead_status,
+        requirements: result.requirements,
+        ai_runs: [result.ai_run, ...current.ai_runs],
+      }) : current);
+    },
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey });
+    },
   });
 
   if (query.isPending) return <StatePanel title="Cargando lead" message="Recuperando el registro persistido…" />;
@@ -25,7 +44,7 @@ export function LeadDetailPage() {
           <h1>{lead.name ?? "Lead sin nombre"}</h1>
           <p>Creado el {formatDate(lead.created_at)}</p>
         </div>
-        <span className="status-badge status-badge--new">{leadStatusLabel[lead.status]}</span>
+        <span className={`status-badge status-badge--${lead.status}`}>{leadStatusLabel[lead.status]}</span>
       </header>
 
       <section className="lead-detail-grid">
@@ -55,17 +74,42 @@ export function LeadDetailPage() {
         </aside>
       </section>
 
-      <section className="panel next-stage-card">
-        <div>
-          <p className="eyebrow">Siguiente etapa</p>
-          <h2>Extracción estructurada todavía no ejecutada</h2>
-          <p>
-            Esta base no simula resultados de IA. El próximo milestone añadirá salida validada, observabilidad y
-            estados de error antes de habilitar el matching.
-          </p>
-        </div>
-        <button className="button button--disabled" type="button" disabled>Procesar requisitos · próximamente</button>
-      </section>
+      {extraction.isError ? (
+        <StatePanel
+          tone="error"
+          title="La extracción no se aplicó"
+          message={extraction.error.message}
+        />
+      ) : null}
+
+      {lead.requirements ? (
+        <RequirementsPanel
+          requirements={lead.requirements}
+          processing={extraction.isPending}
+          onReprocess={() => extraction.mutate()}
+        />
+      ) : (
+        <section className="panel next-stage-card extraction-card">
+          <div>
+            <p className="eyebrow">Extracción estructurada</p>
+            <h2>Convierte el mensaje en requisitos validados</h2>
+            <p>
+              La IA propondrá una estructura estricta. Solo se persistirá si supera la validación del servidor;
+              una falla conservará intacto este lead y quedará registrada.
+            </p>
+          </div>
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={() => extraction.mutate()}
+            disabled={extraction.isPending}
+          >
+            {extraction.isPending ? "Extrayendo…" : "Extraer requisitos con IA"}
+          </button>
+        </section>
+      )}
+
+      <AIRunsPanel runs={lead.ai_runs} />
     </div>
   );
 }

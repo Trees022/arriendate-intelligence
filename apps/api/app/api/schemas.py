@@ -3,6 +3,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.ai.schemas import (
+    MissingInformation,
+    RequestedCurrency,
+    RequestedOperation,
+    RequestedPropertyType,
+)
 from app.domain.enums import AvailabilityStatus, LeadStatus, OperationType, PetPolicy
 
 
@@ -41,6 +47,60 @@ class LeadResponse(BaseModel):
     status: LeadStatus
     created_at: datetime
     updated_at: datetime
+
+
+class LeadRequirementsResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    operation_type: RequestedOperation
+    property_types: list[RequestedPropertyType]
+    locations: list[str]
+    max_budget: int | None
+    currency: RequestedCurrency | None
+    min_bedrooms: int | None
+    min_bathrooms: int | None
+    parking_required: bool | None
+    pets_required: bool | None
+    furnished_preference: bool | None
+    soft_preferences: list[str]
+    missing_information: list[MissingInformation]
+    extraction_confidence: float
+    extraction_model: str
+    prompt_version: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class AIRunResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    run_type: str
+    provider: str
+    model: str
+    prompt_version: str | None
+    provider_request_id: str | None
+    latency_ms: int
+    input_tokens: int | None
+    output_tokens: int | None
+    estimated_cost: float | None
+    validation_passed: bool
+    status: str
+    error_code: str | None
+    error_message: str | None
+    created_at: datetime
+
+
+class LeadDetailResponse(LeadResponse):
+    requirements: LeadRequirementsResponse | None
+    ai_runs: list[AIRunResponse]
+
+
+class LeadExtractionResponse(BaseModel):
+    lead_status: LeadStatus
+    requirements: LeadRequirementsResponse
+    ai_run: AIRunResponse
 
 
 class PropertyResponse(BaseModel):

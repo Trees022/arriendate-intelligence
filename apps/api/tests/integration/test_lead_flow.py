@@ -29,7 +29,9 @@ async def test_lead_is_persisted_before_any_processing(client: AsyncClient) -> N
 
     loaded = await client.get(f"/api/leads/{lead['id']}")
     assert loaded.status_code == 200
-    assert loaded.json() == lead
+    assert {key: loaded.json()[key] for key in lead} == lead
+    assert loaded.json()["requirements"] is None
+    assert loaded.json()["ai_runs"] == []
 
     duplicate = await client.post(
         "/api/leads",

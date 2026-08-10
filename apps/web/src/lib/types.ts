@@ -25,6 +25,81 @@ export interface Lead {
   updated_at: string;
 }
 
+export type RequestedOperation = "rent" | "buy" | "unknown";
+export type RequestedPropertyType =
+  | "apartment"
+  | "house"
+  | "studio"
+  | "loft"
+  | "townhouse"
+  | "land"
+  | "commercial"
+  | "office";
+export type RequestedCurrency = "CLP" | "UF" | "USD";
+export type MissingInformation =
+  | "operation_type"
+  | "property_type"
+  | "location"
+  | "budget"
+  | "currency"
+  | "bedrooms"
+  | "bathrooms"
+  | "parking"
+  | "pets"
+  | "furnished"
+  | "contradictory_requirements"
+  | "unverifiable_preference";
+
+export interface LeadRequirements {
+  id: string;
+  operation_type: RequestedOperation;
+  property_types: RequestedPropertyType[];
+  locations: string[];
+  max_budget: number | null;
+  currency: RequestedCurrency | null;
+  min_bedrooms: number | null;
+  min_bathrooms: number | null;
+  parking_required: boolean | null;
+  pets_required: boolean | null;
+  furnished_preference: boolean | null;
+  soft_preferences: string[];
+  missing_information: MissingInformation[];
+  extraction_confidence: number;
+  extraction_model: string;
+  prompt_version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIRun {
+  id: string;
+  run_type: string;
+  provider: string;
+  model: string;
+  prompt_version: string | null;
+  provider_request_id: string | null;
+  latency_ms: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  estimated_cost: number | null;
+  validation_passed: boolean;
+  status: "running" | "succeeded" | "failed";
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface LeadDetail extends Lead {
+  requirements: LeadRequirements | null;
+  ai_runs: AIRun[];
+}
+
+export interface LeadExtractionResult {
+  lead_status: LeadStatus;
+  requirements: LeadRequirements;
+  ai_run: AIRun;
+}
+
 export type OperationType = "rent" | "buy";
 export type AvailabilityStatus = "available" | "reserved" | "unavailable";
 export type PetPolicy = "allowed" | "not_allowed" | "unknown";

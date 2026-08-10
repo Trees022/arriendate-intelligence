@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("inventory and durable lead-intake flow", async ({ page }) => {
+test("inventory, durable lead intake, and observable structured extraction", async ({ page }) => {
   const originalRequest =
     "Somos una pareja joven con un perro. Buscamos departamento en Viña del Mar, máximo $700.000 mensuales, idealmente 2 dormitorios y estacionamiento.";
 
@@ -26,5 +26,20 @@ test("inventory and durable lead-intake flow", async ({ page }) => {
 
   await page.reload();
   await expect(page.locator("blockquote")).toHaveText(originalRequest);
+  await page.getByRole("button", { name: "Extraer requisitos con IA" }).click();
+  await expect(page.getByRole("heading", { name: "Requisitos estructurados" })).toBeVisible();
+  await expect(page.getByText("CLP 700.000")).toBeVisible();
+  await expect(
+    page.locator(".requirements-grid > div").filter({ hasText: "Dormitorios mínimos" }).getByText("2"),
+  ).toBeVisible();
+  await expect(page.getByText("Calificado")).toBeVisible();
+  await page.getByText("Ejecuciones de IA").click();
+  await expect(page.getByText("Validada", { exact: true })).toBeVisible();
+  await expect(page.getByText("fixture-structured-v1")).toBeVisible();
   await page.screenshot({ path: "../../.local/verified-lead-detail.png", fullPage: true });
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Requisitos estructurados" })).toBeVisible();
+  await page.getByText("Ejecuciones de IA").click();
+  await expect(page.getByText("Validada", { exact: true })).toBeVisible();
 });

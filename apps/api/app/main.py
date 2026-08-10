@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
+from app.ai.contracts import StructuredGenerator
+from app.ai.factory import build_structured_generator
 from app.api.routes import health, leads, properties
 from app.core.errors import AppError
 from app.core.settings import Settings, get_settings
@@ -16,8 +18,12 @@ from app.db.seed import seed_demo_properties
 from app.db.session import Database
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    structured_generator: StructuredGenerator | None = None,
+) -> FastAPI:
     app_settings = settings or get_settings()
+    generator = structured_generator or build_structured_generator(app_settings)
     logging.basicConfig(
         level=app_settings.log_level,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -39,6 +45,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+    application.state.settings = app_settings
+    application.state.structured_generator = generator
     application.add_middleware(
         CORSMiddleware,
         allow_origins=app_settings.cors_origins,
