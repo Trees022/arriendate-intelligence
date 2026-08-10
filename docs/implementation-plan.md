@@ -1,6 +1,6 @@
 # Arriendate Intelligence — Phase 0 Implementation Plan
 
-Status: proposed for review  
+Status: approved baseline; initial slice and structured-extraction milestone implemented
 Scope: Phase 0 planning only  
 Source of truth: `PROJECT_REQUIREMENTS_REAL_ESTATE_AI.md`
 

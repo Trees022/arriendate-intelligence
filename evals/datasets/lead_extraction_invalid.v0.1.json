@@ -1,0 +1,40 @@
+{
+  "version": "lead-extraction-invalid-v0.1",
+  "cases": [
+    {
+      "id": "invalid-001",
+      "scenario": "JSON truncado",
+      "fixture_output": "{\"operation_type\":\"rent\""
+    },
+    {
+      "id": "invalid-002",
+      "scenario": "campo requerido ausente",
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Providencia"], "max_budget": 800000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": 1, "parking_required": true, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": []}
+    },
+    {
+      "id": "invalid-003",
+      "scenario": "campo adicional no permitido",
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Providencia"], "max_budget": 800000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": 1, "parking_required": true, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": [], "confidence": 0.9, "invented_score": 100}
+    },
+    {
+      "id": "invalid-004",
+      "scenario": "tipo incorrecto no coercionable",
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Providencia"], "max_budget": "800000", "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": 1, "parking_required": true, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": [], "confidence": 0.9}
+    },
+    {
+      "id": "invalid-005",
+      "scenario": "valor de enum desconocido",
+      "fixture_output": {"operation_type": "lease", "property_types": ["apartment"], "locations": ["Providencia"], "max_budget": 800000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": 1, "parking_required": true, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": [], "confidence": 0.9}
+    },
+    {
+      "id": "invalid-006",
+      "scenario": "nulo sin marcador de información faltante",
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Providencia"], "max_budget": null, "currency": null, "min_bedrooms": 2, "min_bathrooms": 1, "parking_required": true, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": [], "confidence": 0.9}
+    },
+    {
+      "id": "invalid-007",
+      "scenario": "booleano enviado como texto",
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Providencia"], "max_budget": 800000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": 1, "parking_required": "yes", "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": [], "confidence": 0.9}
+    }
+  ]
+}

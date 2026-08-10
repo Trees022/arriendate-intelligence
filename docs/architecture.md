@@ -1,54 +1,72 @@
-# Architecture — First Vertical Slice
+# Architecture — Structured Lead Extraction Milestone
 
 ## Runtime boundaries
 
-The React browser consumes JSON from FastAPI. FastAPI owns all validation and orchestration and is the only process allowed to use server database credentials. The browser has no direct Supabase client in this milestone.
+The React browser consumes JSON from FastAPI. FastAPI owns orchestration, strict validation, AI credentials, and database access. The browser has no direct Supabase or provider client.
 
 ```text
-HTTP router → application service → repository → SQLAlchemy session → database
+HTTP router → application service → provider protocol + domain validation → repository → database
 ```
 
-Dependencies point inward:
-
-- Routers translate HTTP values into validated Pydantic types.
-- Services implement use cases and raise safe application errors.
+- Routers translate HTTP values into typed request/response models.
+- Services implement the extraction transaction and raise safe application errors.
+- `StructuredGenerator` isolates provider-specific request/response shapes.
+- Strict Pydantic models are the trust boundary between provider text and domain data.
 - Repositories contain queries and persistence mechanics.
-- SQLAlchemy models describe the portable subset used by the application.
-- Supabase SQL migrations define the authoritative PostgreSQL schema, including pgvector and RLS.
+- Supabase SQL migrations define the authoritative PostgreSQL schema; SQLAlchemy also describes the portable SQLite subset.
 
-## Write path: lead intake
+No provider SDK type crosses into routes, repositories, or response schemas.
 
-1. The browser validates basic form shape.
-2. It creates a UUID idempotency key for the exact payload.
-3. `POST /api/leads` validates the body again with strict Pydantic rules.
-4. The service checks whether the idempotency key already exists.
-5. A new lead is committed with status `new`, or the identical existing record is returned.
-6. Reusing the key with different content returns a visible `409` conflict.
-7. The browser navigates to `/leads/{id}` and reloads the record from the API.
+## Write paths
 
-No AI execution is part of this transaction. That keeps persistence available even when future providers fail.
+### Lead intake
 
-## Read path: property inventory
+1. The browser creates a UUID idempotency key and submits the original request.
+2. `POST /api/leads` validates the body, preserving submitted text after only a whitespace-validity check.
+3. The lead is committed with status `new` before any possible AI call.
+4. Reusing a key with identical content returns the same row; different content returns `409`.
 
-The seed includes 18 deterministic records across Viña del Mar, Valparaíso, Concón, and Quilpué. Filters are executed by the repository before pagination. API response schemas deliberately exclude `embedding` and `embedding_text`.
+### Structured extraction
 
-Unknown fields are modeled explicitly:
+1. A human triggers `POST /api/leads/{id}/extract`.
+2. The service commits an `ai_runs` record in `running` state before calling the provider, so an outage still leaves an observable attempt.
+3. The versioned `lead-extraction-v1.0.0` prompt wraps `original_request` as JSON data and sends the strict `LeadRequirements` JSON Schema.
+4. The adapter calls the Responses API with bounded transient retries and `store: false`.
+5. The returned text is validated again with strict Pydantic rules, including enums, non-coercing numbers/booleans, unknown markers, ranges, duplicates, and extra-field rejection.
+6. On success, requirements, lead status, and the successful run are committed together. Missing-information markers produce `needs_information`; otherwise the status becomes `qualified`.
+7. On provider or validation failure, no requirement or lead-status change is applied. The run is marked failed with a bounded, sanitized code/message.
 
-- nullable numbers for bedrooms, parking, surface, and other incomplete facts;
-- `pet_policy = unknown` rather than an optimistic boolean;
-- nullable furnishing status;
-- availability separated from listing content.
+The service never repairs malformed output or promotes partially valid fields.
+
+## Provider decision
+
+The first real adapter targets the OpenAI-compatible Responses API directly through HTTPX. This keeps the application contract narrow, avoids leaking SDK models into the domain, and makes the exact HTTP payload testable with `MockTransport`.
+
+The default `gpt-5.6-luna` model and low reasoning effort target routine, high-volume extraction; model, endpoint, retry limit, timeout, reasoning effort, and price inputs remain environment configuration. Strict Structured Outputs are requested through `text.format` and then independently enforced server-side. Official references: [model selection](https://developers.openai.com/api/docs/guides/latest-model) and [Responses API](https://platform.openai.com/docs/api-reference/responses/create).
+
+The factory selects a disabled adapter unless both the provider name and server-side key are configured. Lead intake, inventory, and reads remain available while extraction returns a useful error.
+
+## Observability model
+
+Each attempt records, where available:
+
+- local run/request ID and provider request ID;
+- run type, lead ID, provider, model, prompt version, and timestamp;
+- status, latency, validation outcome, input/output tokens, and estimated cost;
+- bounded sanitized error code and message.
+
+Raw model output, original lead text, prompt bodies, provider error bodies, and credentials are deliberately excluded. `GET /api/leads/{id}` returns the latest requirements and ten most recent extraction attempts for the internal UI.
 
 ## Database environments
 
 ### Supabase PostgreSQL
 
-`supabase/migrations` is authoritative. The initial migration enables `pgcrypto` and `vector`, creates constrained `leads` and `properties` tables, installs update triggers and indexes, enables RLS, and revokes direct browser-role grants.
+`supabase/migrations` is authoritative. The extraction migration adds constrained `lead_requirements` and `ai_runs` tables, indexes recent lead runs, installs the update trigger, enables RLS, revokes direct browser-role grants, and documents the no-raw-output policy.
 
 ### SQLite development fallback
 
-The current machine lacks Docker and Supabase CLI runtime prerequisites. SQLAlchemy creates the two slice tables in `.local/arriendate.db` so API integration and browser flows can be verified. This adapter is not the production schema and cannot validate pgvector, PostgreSQL arrays, or RLS.
+SQLAlchemy creates the portable tables in `.local/arriendate.db` for local and test execution. It validates routes, services, transactions, constraints represented in models, and persistence behavior. It cannot validate PostgreSQL array behavior, PostgreSQL-specific check semantics, triggers, grants, or RLS.
 
-## Future extension points
+## Explicit boundary
 
-The next milestone adds `lead_requirements` and `ai_runs` through a new migration. AI adapters will sit behind narrow protocols and services; no provider SDK type will enter routes or domain rules. Hard matching, property matches, notes, and follow-up drafts remain separate later milestones.
+This milestone ends after structured extraction, persistence, failure handling, evaluation, and observability. Property matching, embeddings, RAG, agents, workflow integrations, and optimization research remain outside the code path.

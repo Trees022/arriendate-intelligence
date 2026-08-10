@@ -1,0 +1,110 @@
+{
+  "version": "lead-extraction-v0.1",
+  "cases": [
+    {
+      "id": "lead-es-001",
+      "scenario": "arriendo explícito con presupuesto CLP",
+      "original_request": "Busco arrendar un departamento de 2 dormitorios y 1 baño en Providencia, hasta $850.000, con estacionamiento.",
+      "expected": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Providencia"], "max_budget": 850000, "currency": "CLP", "min_bedrooms": 2, "parking_required": true},
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Providencia"], "max_budget": 850000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": 1, "parking_required": true, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": ["pets", "furnished"], "confidence": 0.98}
+    },
+    {
+      "id": "lead-es-002",
+      "scenario": "compra de casa con presupuesto UF",
+      "original_request": "Quiero comprar una casa en Ñuñoa, tres dormitorios, dos baños y estacionamiento. Tope 9.500 UF.",
+      "expected": {"operation_type": "buy", "property_types": ["house"], "locations": ["Ñuñoa"], "max_budget": 9500, "currency": "UF", "min_bedrooms": 3},
+      "fixture_output": {"operation_type": "buy", "property_types": ["house"], "locations": ["Ñuñoa"], "max_budget": 9500, "currency": "UF", "min_bedrooms": 3, "min_bathrooms": 2, "parking_required": true, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": ["pets", "furnished"], "confidence": 0.99}
+    },
+    {
+      "id": "lead-es-003",
+      "scenario": "presupuesto ausente",
+      "original_request": "Necesito arrendar un departamento en Viña del Mar, pero todavía no tengo presupuesto definido.",
+      "expected": {"operation_type": "rent", "locations": ["Viña del Mar"], "max_budget": null, "currency": null, "missing_information": ["budget", "bedrooms", "bathrooms", "parking", "pets", "furnished"]},
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Viña del Mar"], "max_budget": null, "currency": null, "min_bedrooms": null, "min_bathrooms": null, "parking_required": null, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": ["budget", "bedrooms", "bathrooms", "parking", "pets", "furnished"], "confidence": 0.86}
+    },
+    {
+      "id": "lead-es-004",
+      "scenario": "operación no indicada",
+      "original_request": "Me interesa un estudio en Santiago Centro por máximo $400.000, idealmente cerca del metro.",
+      "expected": {"operation_type": "unknown", "property_types": ["studio"], "locations": ["Santiago Centro"], "max_budget": 400000, "soft_preferences": ["cerca del metro"]},
+      "fixture_output": {"operation_type": "unknown", "property_types": ["studio"], "locations": ["Santiago Centro"], "max_budget": 400000, "currency": "CLP", "min_bedrooms": null, "min_bathrooms": null, "parking_required": null, "pets_required": null, "furnished_preference": null, "soft_preferences": ["cerca del metro"], "missing_information": ["operation_type", "bedrooms", "bathrooms", "parking", "pets", "furnished"], "confidence": 0.82}
+    },
+    {
+      "id": "lead-es-005",
+      "scenario": "ubicación vaga no inventada",
+      "original_request": "Busco arrendar una casa de dos dormitorios en un sector tranquilo, hasta $900.000 mensuales.",
+      "expected": {"operation_type": "rent", "property_types": ["house"], "locations": [], "max_budget": 900000, "soft_preferences": ["sector tranquilo"]},
+      "fixture_output": {"operation_type": "rent", "property_types": ["house"], "locations": [], "max_budget": 900000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": null, "parking_required": null, "pets_required": null, "furnished_preference": null, "soft_preferences": ["sector tranquilo"], "missing_information": ["location", "bathrooms", "parking", "pets", "furnished"], "confidence": 0.87}
+    },
+    {
+      "id": "lead-es-006",
+      "scenario": "múltiples tipos y comunas",
+      "original_request": "Arriendo de departamento o loft en Providencia o Las Condes, hasta $1.200.000 y mínimo dos dormitorios.",
+      "expected": {"property_types": ["apartment", "loft"], "locations": ["Providencia", "Las Condes"], "max_budget": 1200000, "min_bedrooms": 2},
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment", "loft"], "locations": ["Providencia", "Las Condes"], "max_budget": 1200000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": null, "parking_required": null, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": ["bathrooms", "parking", "pets", "furnished"], "confidence": 0.96}
+    },
+    {
+      "id": "lead-es-007",
+      "scenario": "mascota como requisito explícito",
+      "original_request": "Busco departamento en Concón para arrendar con mi perro, un dormitorio, presupuesto $650.000.",
+      "expected": {"locations": ["Concón"], "pets_required": true, "min_bedrooms": 1, "max_budget": 650000},
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Concón"], "max_budget": 650000, "currency": "CLP", "min_bedrooms": 1, "min_bathrooms": null, "parking_required": null, "pets_required": true, "furnished_preference": null, "soft_preferences": [], "missing_information": ["bathrooms", "parking", "furnished"], "confidence": 0.96}
+    },
+    {
+      "id": "lead-es-008",
+      "scenario": "mascotas explícitamente descartadas",
+      "original_request": "Quiero arrendar un departamento en Quilpué por $500.000; no tengo ni tendré mascotas.",
+      "expected": {"operation_type": "rent", "locations": ["Quilpué"], "pets_required": false, "max_budget": 500000},
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Quilpué"], "max_budget": 500000, "currency": "CLP", "min_bedrooms": null, "min_bathrooms": null, "parking_required": null, "pets_required": false, "furnished_preference": null, "soft_preferences": [], "missing_information": ["bedrooms", "bathrooms", "parking", "furnished"], "confidence": 0.95}
+    },
+    {
+      "id": "lead-es-009",
+      "scenario": "estacionamiento explícitamente innecesario",
+      "original_request": "Necesito arrendar un estudio en Valparaíso, sin estacionamiento porque no tengo auto, máximo $380.000.",
+      "expected": {"property_types": ["studio"], "locations": ["Valparaíso"], "parking_required": false, "max_budget": 380000},
+      "fixture_output": {"operation_type": "rent", "property_types": ["studio"], "locations": ["Valparaíso"], "max_budget": 380000, "currency": "CLP", "min_bedrooms": null, "min_bathrooms": null, "parking_required": false, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": ["bedrooms", "bathrooms", "pets", "furnished"], "confidence": 0.95}
+    },
+    {
+      "id": "lead-es-010",
+      "scenario": "preferencia de amoblado explícita",
+      "original_request": "Arriendo departamento amoblado en Vitacura, dos dormitorios y dos baños, hasta $1.500.000.",
+      "expected": {"locations": ["Vitacura"], "furnished_preference": true, "min_bedrooms": 2, "min_bathrooms": 2},
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Vitacura"], "max_budget": 1500000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": 2, "parking_required": null, "pets_required": null, "furnished_preference": true, "soft_preferences": [], "missing_information": ["parking", "pets"], "confidence": 0.98}
+    },
+    {
+      "id": "lead-es-011",
+      "scenario": "preferencia blanda no verificable",
+      "original_request": "Quiero comprar una casa en La Reina con patio y que sea muy silenciosa, hasta 12.000 UF.",
+      "expected": {"operation_type": "buy", "property_types": ["house"], "soft_preferences": ["con patio", "muy silenciosa"], "missing_information": ["bedrooms", "bathrooms", "parking", "pets", "furnished", "unverifiable_preference"]},
+      "fixture_output": {"operation_type": "buy", "property_types": ["house"], "locations": ["La Reina"], "max_budget": 12000, "currency": "UF", "min_bedrooms": null, "min_bathrooms": null, "parking_required": null, "pets_required": null, "furnished_preference": null, "soft_preferences": ["con patio", "muy silenciosa"], "missing_information": ["bedrooms", "bathrooms", "parking", "pets", "furnished", "unverifiable_preference"], "confidence": 0.91}
+    },
+    {
+      "id": "lead-es-012",
+      "scenario": "operación contradictoria",
+      "original_request": "Busco arrendar, aunque también podría comprar, un departamento en Macul por unos $700.000 al mes.",
+      "expected": {"operation_type": "unknown", "locations": ["Macul"], "missing_information": ["operation_type", "bedrooms", "bathrooms", "parking", "pets", "furnished", "contradictory_requirements"]},
+      "fixture_output": {"operation_type": "unknown", "property_types": ["apartment"], "locations": ["Macul"], "max_budget": 700000, "currency": "CLP", "min_bedrooms": null, "min_bathrooms": null, "parking_required": null, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": ["operation_type", "bedrooms", "bathrooms", "parking", "pets", "furnished", "contradictory_requirements"], "confidence": 0.7}
+    },
+    {
+      "id": "lead-es-013",
+      "scenario": "presupuesto explícito en USD",
+      "original_request": "Quiero comprar un loft en Valparaíso con tope de USD 180.000, al menos un dormitorio.",
+      "expected": {"operation_type": "buy", "property_types": ["loft"], "max_budget": 180000, "currency": "USD"},
+      "fixture_output": {"operation_type": "buy", "property_types": ["loft"], "locations": ["Valparaíso"], "max_budget": 180000, "currency": "USD", "min_bedrooms": 1, "min_bathrooms": null, "parking_required": null, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": ["bathrooms", "parking", "pets", "furnished"], "confidence": 0.97}
+    },
+    {
+      "id": "lead-es-014",
+      "scenario": "local comercial",
+      "original_request": "Necesito arrendar un local comercial en el centro de Viña del Mar, máximo $2.000.000 mensuales.",
+      "expected": {"operation_type": "rent", "property_types": ["commercial"], "locations": ["centro de Viña del Mar"], "max_budget": 2000000},
+      "fixture_output": {"operation_type": "rent", "property_types": ["commercial"], "locations": ["centro de Viña del Mar"], "max_budget": 2000000, "currency": "CLP", "min_bedrooms": null, "min_bathrooms": null, "parking_required": null, "pets_required": null, "furnished_preference": null, "soft_preferences": [], "missing_information": ["bedrooms", "bathrooms", "parking", "pets", "furnished"], "confidence": 0.96}
+    },
+    {
+      "id": "lead-es-015",
+      "scenario": "lenguaje coloquial chileno",
+      "original_request": "Ando buscando un depa para arrendar en Independencia, una pieza, ojalá cerca del metro y hasta 600 lucas.",
+      "expected": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Independencia"], "max_budget": 600000, "currency": "CLP", "soft_preferences": ["cerca del metro"]},
+      "fixture_output": {"operation_type": "rent", "property_types": ["apartment"], "locations": ["Independencia"], "max_budget": 600000, "currency": "CLP", "min_bedrooms": 1, "min_bathrooms": null, "parking_required": null, "pets_required": null, "furnished_preference": null, "soft_preferences": ["cerca del metro"], "missing_information": ["bathrooms", "parking", "pets", "furnished"], "confidence": 0.93}
+    }
+  ]
+}

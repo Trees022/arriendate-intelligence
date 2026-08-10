@@ -1,4 +1,12 @@
-import type { Lead, LeadCreate, Property, PropertyFilters, PropertyList } from "./types";
+import type {
+  Lead,
+  LeadCreate,
+  LeadDetail,
+  LeadExtractionResult,
+  Property,
+  PropertyFilters,
+  PropertyList,
+} from "./types";
 
 const API_URL = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000/api").replace(/\/$/, "");
 
@@ -58,6 +66,10 @@ export function createLead(payload: LeadCreate, idempotencyKey: string): Promise
   });
 }
 
-export function getLead(id: string): Promise<Lead> {
-  return request<Lead>(`/leads/${id}`);
+export function getLead(id: string): Promise<LeadDetail> {
+  return request<LeadDetail>(`/leads/${id}`);
+}
+
+export function extractLead(id: string): Promise<LeadExtractionResult> {
+  return request<LeadExtractionResult>(`/leads/${id}/extract`, { method: "POST" });
 }
