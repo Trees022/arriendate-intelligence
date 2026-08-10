@@ -147,6 +147,10 @@ An opt-in live run uses the same prompt and JSON Schema as production:
 
 Generated reports are written to the ignored `evals/results/lead_extraction.latest.json`. Live runs require provider environment variables and may incur cost.
 
+Pull requests and pushes to `main` run the same backend/frontend checks through
+`.github/workflows/ci.yml`. CI uses Python 3.12, Node.js 22, SQLite, mocks, and the offline
+fixture evaluation; it does not receive an AI API key or start PostgreSQL/Supabase.
+
 Run all checks:
 
 ```powershell
