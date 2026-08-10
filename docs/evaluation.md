@@ -57,3 +57,7 @@ Configure the provider entirely through server-side `ARRIENDATE_AI_*` variables,
 Live evaluation uses the production prompt, schema, configured provider/model, bounded retry policy, and real usage/latency when returned. It can incur provider cost and generated reports remain ignored at `evals/results/lead_extraction.latest.json`.
 
 No live-model baseline is claimed until a real key, provider availability, and current pricing configuration are supplied.
+
+The PostgreSQL integration job continues to use this deterministic fixture provider. Database
+validation covers persistence and rollback of successful, malformed, and incomplete extraction
+outputs, but it does not make or imply a live-model quality claim.

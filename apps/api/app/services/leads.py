@@ -23,18 +23,16 @@ class LeadService:
         self.extractions = ExtractionRepository(session)
 
     async def create(self, payload: LeadCreate, idempotency_key: UUID) -> Lead:
-        existing = await self.repository.get_by_idempotency_key(idempotency_key)
-        if existing:
-            same_request = (
-                existing.original_request == payload.original_request
-                and existing.name == payload.name
-                and existing.email == (str(payload.email).lower() if payload.email else None)
-                and existing.phone == payload.phone
-            )
-            if not same_request:
-                raise ConflictError("La clave de idempotencia ya fue usada con otra solicitud")
-            return existing
-        return await self.repository.create(payload, idempotency_key)
+        lead = await self.repository.create_or_get(payload, idempotency_key)
+        same_request = (
+            lead.original_request == payload.original_request
+            and lead.name == payload.name
+            and lead.email == (str(payload.email).lower() if payload.email else None)
+            and lead.phone == payload.phone
+        )
+        if not same_request:
+            raise ConflictError("La clave de idempotencia ya fue usada con otra solicitud")
+        return lead
 
     async def get(self, lead_id: UUID) -> Lead:
         lead = await self.repository.get(lead_id)

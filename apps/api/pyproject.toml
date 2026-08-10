@@ -33,6 +33,9 @@ include = ["app*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "postgres: production-like PostgreSQL/Supabase database integration tests",
+]
 
 [tool.ruff]
 line-length = 100

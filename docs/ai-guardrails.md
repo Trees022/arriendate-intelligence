@@ -37,3 +37,7 @@
 1. This milestone does not ask the model to read, rank, recommend, or modify properties.
 2. Future matching cannot be inferred from the existence of structured requirements.
 3. Direct `anon` and `authenticated` access to extraction tables is revoked in the PostgreSQL migration.
+4. PostgreSQL integration tests assert both object privileges and actual `SET ROLE` behavior for
+   `anon`, `authenticated`, and `service_role`; SQLite tests make no database-security claim.
+5. The server-side direct connection remains privileged in this internal milestone. A dedicated
+   least-privilege database login and ownership-aware RLS policies are required before public use.

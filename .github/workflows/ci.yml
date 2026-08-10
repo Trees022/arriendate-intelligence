@@ -48,10 +48,53 @@ jobs:
         run: python -m mypy apps/api/app
 
       - name: Backend tests
-        run: python -m pytest apps/api/tests -q
+        run: python -m pytest apps/api/tests --ignore=apps/api/tests/postgres -q
 
       - name: Offline lead extraction evaluation
         run: python evals/scripts/evaluate_lead_extraction.py --mode fixture
+
+  postgres:
+    name: PostgreSQL / Supabase DB
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ARRIENDATE_TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      ARRIENDATE_SEED_DEMO_DATA: "false"
+      ARRIENDATE_AI_PROVIDER: disabled
+
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.2-pg17-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/pyproject.toml
+
+      - name: Install backend dependencies
+        run: python -m pip install -e "./apps/api[dev]"
+
+      - name: PostgreSQL migrations, security, seed, and application integration
+        run: python -m pytest apps/api/tests/postgres -q -m postgres
 
   frontend:
     name: Frontend

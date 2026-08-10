@@ -1,7 +1,8 @@
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.schemas import LeadRequirements
@@ -56,9 +57,41 @@ class ExtractionRepository:
         model: str,
         prompt_version: str,
     ) -> LeadRequirement:
-        record = await self.get_requirements(lead_id)
         values = requirements.model_dump(mode="json")
         confidence = values.pop("confidence")
+        bind = self.session.get_bind()
+        if bind.dialect.name == "postgresql":
+            insert_values = {
+                "id": uuid4(),
+                "lead_id": lead_id,
+                "extraction_confidence": confidence,
+                "extraction_model": model,
+                "prompt_version": prompt_version,
+                **values,
+            }
+            update_values = {
+                "extraction_confidence": confidence,
+                "extraction_model": model,
+                "prompt_version": prompt_version,
+                "updated_at": func.now(),
+                **values,
+            }
+            statement = (
+                postgresql_insert(LeadRequirement)
+                .values(**insert_values)
+                .on_conflict_do_update(
+                    constraint="lead_requirements_lead_id_key",
+                    set_=update_values,
+                )
+                .returning(LeadRequirement.id)
+            )
+            record_id = (await self.session.execute(statement)).scalar_one()
+            record = await self.session.get(LeadRequirement, record_id)
+            if record is None:
+                raise RuntimeError("Lead requirements disappeared during upsert")
+            return record
+
+        record = await self.get_requirements(lead_id)
         if record is None:
             record = LeadRequirement(
                 lead_id=lead_id,
