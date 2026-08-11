@@ -14,6 +14,8 @@ HTTP router → application service → provider protocol + domain validation �
 - Strict Pydantic models are the trust boundary between provider text and domain data.
 - Repositories contain queries and persistence mechanics.
 - Supabase SQL migrations define the authoritative PostgreSQL schema; SQLAlchemy also describes the portable SQLite subset.
+- `app.server` supplies a selector event loop on Windows so the async psycopg path can run against
+  Docker-based local Supabase as it does on Linux.
 
 No provider SDK type crosses into routes, repositories, or response schemas.
 
@@ -75,6 +77,19 @@ SQLAlchemy creates the portable tables in `.local/arriendate.db` for local and t
 
 The SQLite and PostgreSQL suites are intentionally distinct. Passing SQLite is not evidence that a
 migration or RLS policy works. See [database validation](database-validation.md) for exact commands.
+
+### Validated local Supabase boundary
+
+The Docker-based local stack has been validated end to end through Kong/PostgREST, Auth-issued
+authenticated tokens, FastAPI, and the React browser flow. No browser code connects directly to
+Supabase. Application tables remain absent from the anon OpenAPI surface, and anon, authenticated,
+and service_role Data API requests cannot read or write them because no object grants or permissive
+RLS policies exist. The privileged backend path is the server-only PostgreSQL owner connection, not
+a browser-visible service-role key.
+
+This validation covers local containers only. Supabase hosted deployment, production Auth,
+organization ownership/multitenancy, and a least-privilege backend login remain future production
+work.
 
 ## Explicit boundary
 

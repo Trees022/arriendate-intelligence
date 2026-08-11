@@ -83,9 +83,13 @@ python -m venv .venv
 Start the API and web app in separate terminals:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir apps/api --reload --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m app.server
 npm.cmd run dev:web
 ```
+
+`app.server` selects the event loop required by psycopg async on Windows. Optional
+`ARRIENDATE_API_HOST`, `ARRIENDATE_API_PORT`, and `ARRIENDATE_API_RELOAD` variables configure the
+local Uvicorn process without changing application settings.
 
 Open `http://127.0.0.1:5173`. API documentation is at `http://127.0.0.1:8000/docs`.
 
@@ -128,6 +132,15 @@ path, and drops only its generated database. To run the API itself against the l
 
 See [database validation](docs/database-validation.md) for reset commands, environment separation,
 security expectations, and limitations.
+
+The full local stack was validated on 2026-08-11 with Supabase CLI 2.113.0 and PostgreSQL
+17.6.1.158. Two clean resets produced the same 18-row synthetic inventory. Auth, Kong/PostgREST,
+Realtime, Storage, Studio, Mailpit, Analytics, Vector, Edge Runtime, and Postgres Meta were also
+started locally. The Vector log collector cannot remain healthy unless Docker Desktop exposes its
+daemon on local TCP port 2375; that host-level option was intentionally left disabled. This does not
+affect the PostgreSQL pgvector extension. The focused `tests/supabase` suite validates the
+deny-by-default Data API surface and refuses non-loopback URLs. This does not claim validation of
+Supabase hosted or production.
 
 ## API in this milestone
 
@@ -174,6 +187,9 @@ Run all checks:
 # PostgreSQL/Supabase database layer; requires ARRIENDATE_TEST_POSTGRES_URL
 .\.venv\Scripts\python.exe -m pytest apps/api/tests/postgres -q -m postgres
 
+# Full local Supabase Data API; requires local-only URL and ephemeral keys from `supabase status`
+.\.venv\Scripts\python.exe -m pytest apps/api/tests/supabase -q -m supabase
+
 # Frontend
 npm.cmd run typecheck:web
 npm.cmd run lint:web
@@ -181,7 +197,9 @@ npm.cmd run test:web
 npm.cmd run build:web
 
 # Browser flow; requires Microsoft Edge and the deterministic test API/web processes
-# API: .\.venv\Scripts\python.exe -m uvicorn tests.e2e_app:app --app-dir apps/api --host 127.0.0.1 --port 8000
+# API (set ARRIENDATE_E2E_DATABASE_URL to use local Supabase instead of the SQLite default):
+# $env:ARRIENDATE_ASGI_APP='tests.e2e_app:app'; $env:ARRIENDATE_APP_DIR='apps/api'
+# .\.venv\Scripts\python.exe -m app.server
 # Web: npm.cmd run dev:web -- --host 127.0.0.1 --port 5173
 npm.cmd run test:e2e
 ```
@@ -199,10 +217,11 @@ npm.cmd run test:e2e
 ## Known limitations
 
 - No live provider evaluation is reproducible without a separately supplied API key; the committed suite uses deterministic fixtures and an HTTP mock of the Responses API contract.
-- The database suite has been executed against real PostgreSQL 17 with pgvector and CI
-  reproduces that database layer. A hosted Supabase project and the complete local Supabase
-  Auth/PostgREST stack remain unvalidated; CI validates PostgreSQL schema and Supabase role/RLS/grant
-  semantics, not those surrounding services.
+- The database suite has been executed against real PostgreSQL 17 with pgvector, and the
+  application-facing local Supabase stack has been validated through Docker, Auth, Kong/PostgREST,
+  and the application browser flow. CI still validates only the PostgreSQL schema and
+  role/RLS/grant semantics; Supabase
+  hosted and production configuration remain unvalidated.
 - FastAPI currently uses a privileged direct PostgreSQL connection. A dedicated least-privilege
   login and organization-aware policies are required before public or multi-tenant deployment.
 - Cost remains `null` unless both provider usage and current per-million prices are configured.

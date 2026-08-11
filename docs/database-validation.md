@@ -32,8 +32,71 @@ To run FastAPI against local Supabase after reset:
 ```powershell
 $env:ARRIENDATE_DATABASE_URL='postgresql+psycopg://postgres:postgres@127.0.0.1:54322/postgres'
 $env:ARRIENDATE_SEED_DEMO_DATA='false'
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m app.server
 ```
+
+The repository runner uses a selector event loop on Windows because psycopg async cannot run on
+the default Proactor event loop selected by current Uvicorn releases.
+
+## Full local Supabase validation
+
+On 2026-08-11, a clean checkout was validated with Docker Engine 29.7.2, Docker Compose 5.3.1,
+Supabase CLI 2.113.0, and the local PostgreSQL 17.6.1.158 image. PostgreSQL, Kong, PostgREST, Auth,
+Realtime, Storage, Studio, Postgres Meta, Mailpit, Analytics/Logflare, and Edge Runtime started and
+remained available. The initial cold image pull exceeded the legacy health timeout once; a repeat
+with cached images completed without repository changes.
+
+The auxiliary Vector log collector repeatedly restarts on this Windows host. Supabase CLI configures
+it with `DOCKER_HOST=http://host.docker.internal:2375`, while Docker Desktop intentionally does not
+expose its unauthenticated daemon on TCP port 2375. Container logs show connection refused, a clean
+exit, and no OOM. This is a Docker Desktop host configuration limitation rather than a repository
+failure; enabling the insecure daemon globally was not required for application validation. It is
+unrelated to the healthy PostgreSQL pgvector 0.8.2 extension.
+
+Two consecutive `db reset --local` executions applied both timestamped migrations and the seed
+without manual SQL. Each produced 18 properties, zero leads, the same content digest when runtime
+timestamps were excluded, UTF-8 Chilean text, the intended nullable fixture, pgcrypto 1.3, pgvector
+0.8.2, and `vector(1536)`.
+
+The local Data API is deliberately closed for this internal milestone:
+
+- unauthenticated requests without an API key return `401`;
+- `anon` cannot read any application table (`401`) or insert leads (`401`);
+- a real locally issued `authenticated` token cannot read or insert (`403`);
+- `service_role` bypasses RLS as a PostgreSQL role but has no Data API object grants, so direct
+  PostgREST reads and writes return `403`;
+- the anon OpenAPI document publishes only `/`, not application-table paths.
+
+The local-only regression suite requires ephemeral keys from the running stack and refuses any URL
+whose host is not loopback:
+
+```powershell
+$supabaseStatus = npm.cmd exec supabase -- status -o env
+function Get-LocalSupabaseValue([string]$name) {
+  $line = $supabaseStatus | Where-Object { $_ -like "$name=*" } | Select-Object -First 1
+  (($line -split '=', 2)[1]).Trim('"')
+}
+$env:ARRIENDATE_TEST_SUPABASE_URL = Get-LocalSupabaseValue 'API_URL'
+$env:ARRIENDATE_TEST_SUPABASE_ANON_KEY = Get-LocalSupabaseValue 'ANON_KEY'
+$env:ARRIENDATE_TEST_SUPABASE_SERVICE_ROLE_KEY = Get-LocalSupabaseValue 'SERVICE_ROLE_KEY'
+.\.venv\Scripts\python.exe -m pytest apps/api/tests/supabase -q -m supabase
+```
+
+Do not persist or print the captured local keys. They are Docker-local test credentials, not
+production secrets.
+
+For the browser flow against local Supabase, run the deterministic provider harness with PostgreSQL
+instead of its default SQLite database:
+
+```powershell
+$env:ARRIENDATE_E2E_DATABASE_URL='postgresql+psycopg://postgres:postgres@127.0.0.1:54322/postgres'
+$env:ARRIENDATE_ASGI_APP='tests.e2e_app:app'
+$env:ARRIENDATE_APP_DIR='apps/api'
+.\.venv\Scripts\python.exe -m app.server
+```
+
+In another terminal, run `npm.cmd run dev:web -- --host 127.0.0.1 --port 5173`, then
+`npm.cmd run test:e2e`.
 
 ## Fast versus production-like tests
 
@@ -74,5 +137,6 @@ platform configuration.
   owner to exercise this path.
 
 Before public deployment, provision a dedicated least-privilege FastAPI login and add an approved
-authentication/organization ownership model. Hosted Supabase configuration still needs a real
-environment validation before production release.
+authentication/organization ownership model. Hosted Supabase, production Auth flows, backups and
+recovery, rate limiting, hosted observability, and a live AI provider still need validation in their
+actual environments.
