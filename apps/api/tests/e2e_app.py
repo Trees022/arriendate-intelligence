@@ -1,3 +1,4 @@
+import os
 from decimal import Decimal
 
 from app.ai.providers.fixture import StaticStructuredGenerator
@@ -6,9 +7,12 @@ from app.main import create_app
 from tests.factories import valid_requirements_json
 
 settings = Settings(
-    database_url=(
-        "sqlite+aiosqlite:///"
-        + (REPOSITORY_ROOT / ".local" / "arriendate-e2e.db").as_posix()
+    database_url=os.getenv(
+        "ARRIENDATE_E2E_DATABASE_URL",
+        (
+            "sqlite+aiosqlite:///"
+            + (REPOSITORY_ROOT / ".local" / "arriendate-e2e.db").as_posix()
+        ),
     ),
     ai_input_cost_per_million=Decimal("1.00"),
     ai_output_cost_per_million=Decimal("6.00"),

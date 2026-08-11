@@ -6,7 +6,7 @@
     "apps/web"
   ],
   "scripts": {
-    "dev:web": "npm run dev --workspace @arriendate/web",
+    "dev:web": "npm run dev --workspace @arriendate/web --",
     "build:web": "npm run build --workspace @arriendate/web",
     "lint:web": "npm run lint --workspace @arriendate/web",
     "test:web": "npm run test --workspace @arriendate/web",

@@ -39,16 +39,16 @@ export function DashboardPage() {
 
       <section className="dashboard-grid">
         <article className="panel panel--dark">
-          <p className="eyebrow eyebrow--light">Primer vertical slice</p>
-          <h2>Del mensaje original a un registro confiable.</h2>
+          <p className="eyebrow eyebrow--light">Flujo verificable</p>
+          <h2>Del mensaje original a requisitos estructurados.</h2>
           <p>
-            La solicitud se guarda antes de cualquier futura extracción. Hoy no hay IA simulada ni métricas
-            inventadas: los siguientes pasos aparecerán cuando su lógica y trazabilidad estén implementadas.
+            La solicitud se guarda antes de la extracción. Cada intento queda trazado y los requisitos sólo
+            se persisten cuando superan la validación estricta del servidor.
           </p>
           <ol className="flow-list">
             <li className="is-complete"><span>1</span> Captura del lead</li>
             <li className="is-complete"><span>2</span> Persistencia original</li>
-            <li><span>3</span> Extracción estructurada</li>
+            <li className="is-complete"><span>3</span> Extracción estructurada</li>
             <li><span>4</span> Matching híbrido</li>
           </ol>
         </article>

@@ -64,7 +64,7 @@ export function NewLeadPage() {
       <PageHeader
         eyebrow="Ingreso rápido"
         title="Captura la necesidad tal como fue expresada."
-        description="Primero guardamos la fuente original. La extracción y los matches se ejecutarán como pasos separados y auditables."
+        description="Primero guardamos la fuente original. La extracción y el futuro matching se ejecutan como pasos separados y auditables."
       />
 
       <div className="intake-layout">
@@ -144,7 +144,7 @@ export function NewLeadPage() {
           ) : null}
 
           <div className="form-actions">
-            <p><span className="system-dot" /> Se guardará antes de cualquier procesamiento futuro.</p>
+            <p><span className="system-dot" /> Se guardará antes de ejecutar la extracción.</p>
             <button className="button button--primary" type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? "Guardando…" : "Guardar lead"}
             </button>
@@ -159,7 +159,7 @@ export function NewLeadPage() {
               <li><span>✓</span> Validación en navegador y servidor</li>
               <li><span>✓</span> Persistencia del mensaje original</li>
               <li><span>✓</span> Protección contra doble envío</li>
-              <li className="is-muted"><span>○</span> Extracción estructurada · próximo hito</li>
+              <li><span>✓</span> Extracción estructurada y observable</li>
               <li className="is-muted"><span>○</span> Top 3 matches · próximo hito</li>
             </ul>
           </div>
