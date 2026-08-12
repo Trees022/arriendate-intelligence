@@ -2,9 +2,9 @@
 
 An internal real-estate operating layer that turns an unstructured lead into validated, traceable CRM data.
 
-> Current milestone: structured lead extraction with AI plus execution observability.
+> Current milestone: deterministic hard constraints plus semantic property ranking with pgvector.
 
-This repository is intentionally incremental. This milestone does **not** contain property matching, embeddings, RAG, autonomous agents, n8n workflows, outbound messages, or quantum optimization.
+This repository is intentionally incremental. This milestone does **not** contain RAG, autonomous agents, n8n workflows, outbound messages, multitenancy, or quantum optimization.
 
 ## Product flow
 
@@ -37,7 +37,7 @@ flowchart LR
 - Prompts and raw model outputs are not stored in `ai_runs`; only a prompt version and sanitized metadata are persisted.
 - SQL under `supabase/migrations` is authoritative for PostgreSQL. SQLite is a zero-install local/test adapter.
 
-See [architecture decisions](docs/architecture.md), [AI guardrails](docs/ai-guardrails.md), [evaluation methodology](docs/evaluation.md), and the approved [implementation plan](docs/implementation-plan.md).
+See [architecture decisions](docs/architecture.md), [matching contract](docs/matching.md), [AI guardrails](docs/ai-guardrails.md), [evaluation methodology](docs/evaluation.md), and the approved [implementation plan](docs/implementation-plan.md).
 
 ## Technology
 
@@ -54,7 +54,9 @@ See [architecture decisions](docs/architecture.md), [AI guardrails](docs/ai-guar
 ```text
 apps/web/                 CRM-like React UI
 apps/api/app/ai/          schemas, prompts, provider contracts/adapters
-apps/api/app/evaluation/  reusable extraction evaluator
+apps/api/app/embeddings/  provider-neutral embedding contracts/adapters
+apps/api/app/matching/    deterministic constraints and canonical texts
+apps/api/app/evaluation/  extraction and matching evaluators
 apps/api/tests/           unit, provider-contract, evaluation and integration tests
 supabase/migrations/      authoritative PostgreSQL schema
 supabase/seed/            18 synthetic Chilean properties
@@ -113,6 +115,28 @@ ARRIENDATE_AI_MAX_RETRIES=2
 
 Optional `ARRIENDATE_AI_INPUT_COST_PER_MILLION` and `ARRIENDATE_AI_OUTPUT_COST_PER_MILLION` values enable cost estimates. They are configuration, not hard-coded price claims.
 
+### Embedding configuration
+
+Embeddings have a separate server-only provider contract. Production can use an OpenAI-compatible
+`/embeddings` endpoint; tests and the E2E harness use a stable feature-hash provider and never use
+the network.
+
+```dotenv
+ARRIENDATE_EMBEDDING_PROVIDER=openai_compatible
+ARRIENDATE_EMBEDDING_BASE_URL=https://api.openai.com/v1
+ARRIENDATE_EMBEDDING_API_KEY=replace-locally
+ARRIENDATE_EMBEDDING_MODEL=text-embedding-3-small
+ARRIENDATE_EMBEDDING_DIMENSION=1536
+ARRIENDATE_EMBEDDING_TIMEOUT_SECONDS=30
+```
+
+With the default `disabled` provider, matching still returns zero candidates or hard-only results
+when no semantic preferences exist. It returns a sanitized `503` only when an embedding is required.
+The configured dimension is fixed at 1536 to match the authoritative `vector(1536)` schema. Cached
+vectors are reused only when canonical text, provider, model, and non-sensitive vector-space identity
+all agree. A budget is matched only when its operation and currency are explicit; no conversion or
+price-column inference is performed.
+
 ### Local Supabase and PostgreSQL validation
 
 When Docker is available:
@@ -150,6 +174,8 @@ Supabase hosted or production.
 | `POST` | `/api/leads` | persist untouched lead text; requires an `Idempotency-Key` UUID |
 | `GET` | `/api/leads/{id}` | lead, latest requirements, and last 10 extraction runs |
 | `POST` | `/api/leads/{id}/extract` | explicit structured extraction and run telemetry |
+| `POST` | `/api/leads/{id}/matches?top_k=3` | persist hard-gated semantic matching; `top_k` is 1-10 |
+| `GET` | `/api/leads/{id}/matches` | latest successful match run, or `not_run` |
 | `GET` | `/api/properties` | synthetic inventory with basic filters |
 | `GET` | `/api/properties/{id}` | synthetic property facts |
 
@@ -159,6 +185,7 @@ The default evaluation is deterministic and requires no key. It evaluates 15 lab
 
 ```powershell
 .\.venv\Scripts\python.exe evals\scripts\evaluate_lead_extraction.py
+.\.venv\Scripts\python.exe evals\scripts\evaluate_property_matching.py
 ```
 
 An opt-in live run uses the same prompt and JSON Schema as production:
@@ -183,6 +210,7 @@ Run all checks:
 .\.venv\Scripts\python.exe -m mypy apps/api/app
 .\.venv\Scripts\python.exe -m pytest apps/api/tests --ignore=apps/api/tests/postgres -q
 .\.venv\Scripts\python.exe evals\scripts\evaluate_lead_extraction.py --mode fixture
+.\.venv\Scripts\python.exe evals\scripts\evaluate_property_matching.py
 
 # PostgreSQL/Supabase database layer; requires ARRIENDATE_TEST_POSTGRES_URL
 .\.venv\Scripts\python.exe -m pytest apps/api/tests/postgres -q -m postgres
@@ -216,6 +244,9 @@ npm.cmd run test:e2e
 
 ## Known limitations
 
+- The deterministic embedding provider is a regression fixture, not a production semantic-quality claim.
+- Exact pgvector search is intentional for 18 properties; no HNSW index exists yet. Reassess with realistic inventory and query plans.
+- Similarity is a normalized cosine ranking signal, not a probability or compatibility percentage.
 - No live provider evaluation is reproducible without a separately supplied API key; the committed suite uses deterministic fixtures and an HTTP mock of the Responses API contract.
 - The database suite has been executed against real PostgreSQL 17 with pgvector, and the
   application-facing local Supabase stack has been validated through Docker, Auth, Kong/PostgREST,
@@ -224,6 +255,8 @@ npm.cmd run test:e2e
   hosted and production configuration remain unvalidated.
 - FastAPI currently uses a privileged direct PostgreSQL connection. A dedicated least-privilege
   login and organization-aware policies are required before public or multi-tenant deployment.
+- Authentication, tenant isolation, abuse controls, and endpoint rate limiting remain deployment
+  prerequisites; this internal milestone does not claim them.
 - Cost remains `null` unless both provider usage and current per-million prices are configured.
 - Authentication is not implemented. The app is intended for local/internal evaluation and is not ready for public deployment.
-- Matching, RAG, agents, n8n, outbound messaging, and later milestones are intentionally absent.
+- RAG, agents, n8n, outbound messaging, requirement relaxation, and later milestones are intentionally absent.

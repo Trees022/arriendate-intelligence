@@ -8,6 +8,8 @@ from httpx import ASGITransport, AsyncClient
 
 from app.ai.contracts import StructuredGenerator
 from app.core.settings import Settings
+from app.embeddings.contracts import EmbeddingProvider
+from app.embeddings.providers.deterministic import DeterministicEmbeddingProvider
 from app.main import create_app
 
 VALID_REQUIREMENTS: dict[str, Any] = {
@@ -37,7 +39,9 @@ async def running_test_client(
     tmp_path: Path,
     *,
     generator: StructuredGenerator | None = None,
+    embedding_provider: EmbeddingProvider | None = None,
     database_url: str | None = None,
+    raise_app_exceptions: bool = True,
     **settings_overrides: Any,
 ) -> AsyncIterator[AsyncClient]:
     if database_url is None:
@@ -50,8 +54,12 @@ async def running_test_client(
     }
     settings_values.update(settings_overrides)
     settings = Settings(**settings_values)
-    app = create_app(settings, structured_generator=generator)
+    app = create_app(
+        settings,
+        structured_generator=generator,
+        embedding_provider=embedding_provider or DeterministicEmbeddingProvider(),
+    )
     async with app.router.lifespan_context(app):
-        transport = ASGITransport(app=app)
+        transport = ASGITransport(app=app, raise_app_exceptions=raise_app_exceptions)
         async with AsyncClient(transport=transport, base_url="http://test.local") as client:
             yield client

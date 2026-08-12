@@ -3,6 +3,7 @@ import type {
   LeadCreate,
   LeadDetail,
   LeadExtractionResult,
+  LeadMatches,
   Property,
   PropertyFilters,
   PropertyList,
@@ -72,4 +73,12 @@ export function getLead(id: string): Promise<LeadDetail> {
 
 export function extractLead(id: string): Promise<LeadExtractionResult> {
   return request<LeadExtractionResult>(`/leads/${id}/extract`, { method: "POST" });
+}
+
+export function getLeadMatches(id: string): Promise<LeadMatches> {
+  return request<LeadMatches>(`/leads/${id}/matches`);
+}
+
+export function generateLeadMatches(id: string, topK = 3): Promise<LeadMatches> {
+  return request<LeadMatches>(`/leads/${id}/matches?top_k=${topK}`, { method: "POST" });
 }

@@ -140,3 +140,40 @@ export interface PropertyFilters {
   city?: string;
   availability?: AvailabilityStatus;
 }
+
+export interface ConstraintCheck {
+  constraint: string;
+  expected: unknown;
+  actual: unknown;
+  passed: boolean;
+}
+
+export interface SoftMatchReason {
+  preference: string;
+  property_fact: string;
+}
+
+export interface PropertyMatch {
+  rank: number;
+  semantic_score: number | null;
+  hard_constraint_matches: ConstraintCheck[];
+  soft_match_reasons: SoftMatchReason[];
+  property: Property;
+}
+
+export interface LeadMatches {
+  status: "not_run" | "succeeded";
+  run_id: string | null;
+  algorithm_version: string | null;
+  embedding_provider: string | null;
+  embedding_model: string | null;
+  requested_top_k: number | null;
+  total_properties: number;
+  candidate_count: number;
+  result_count: number;
+  latency_ms: number | null;
+  embedding_latency_ms: number | null;
+  exclusion_summary: Array<{ constraint: string; excluded_count: number }>;
+  items: PropertyMatch[];
+  created_at: string | null;
+}

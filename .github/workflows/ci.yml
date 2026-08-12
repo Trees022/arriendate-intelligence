@@ -53,6 +53,9 @@ jobs:
       - name: Offline lead extraction evaluation
         run: python evals/scripts/evaluate_lead_extraction.py --mode fixture
 
+      - name: Offline property matching evaluation
+        run: python evals/scripts/evaluate_property_matching.py
+
   postgres:
     name: PostgreSQL / Supabase DB
     runs-on: ubuntu-latest

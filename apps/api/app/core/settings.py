@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     ai_max_retries: int = Field(default=2, ge=0, le=5)
     ai_input_cost_per_million: Decimal | None = Field(default=None, ge=0)
     ai_output_cost_per_million: Decimal | None = Field(default=None, ge=0)
+    embedding_provider: Literal["disabled", "deterministic", "openai_compatible"] = "disabled"
+    embedding_base_url: str = "https://api.openai.com/v1"
+    embedding_api_key: SecretStr | None = None
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dimension: Literal[1536] = 1536
+    embedding_timeout_seconds: float = Field(default=30, gt=0, le=300)
 
 
 @lru_cache

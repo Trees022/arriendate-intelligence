@@ -93,6 +93,7 @@ class LeadExtractionService:
                 model=provider_result.model,
                 prompt_version=PROMPT_VERSION,
             )
+            await self.extractions.invalidate_matching_runs(lead_id)
             lead.status = (
                 LeadStatus.NEEDS_INFORMATION.value
                 if requirements.missing_information
@@ -115,6 +116,7 @@ class LeadExtractionService:
                 estimated_cost=estimated_cost,
             )
             await self.session.commit()
+            await self.session.refresh(requirement_record)
         except Exception:
             await self.session.rollback()
             await self.extractions.mark_run_failed(

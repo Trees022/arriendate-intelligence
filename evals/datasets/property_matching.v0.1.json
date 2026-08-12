@@ -1,0 +1,144 @@
+{
+  "version": "property-matching-v0.1",
+  "cases": [
+    {
+      "id": "budget-bedrooms-pets",
+      "scenario": "Hard budget, bedrooms, pets, plus luminosity",
+      "original_request": "Busco departamento de máximo 800 mil, mínimo 2 dormitorios y que acepte mascotas; prefiero algo luminoso.",
+      "requirements": {
+        "operation_type": "rent", "property_types": ["apartment"], "locations": ["Vina del Mar"],
+        "max_budget": 800000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": null,
+        "parking_required": null, "pets_required": true, "furnished_preference": null,
+        "soft_preferences": ["luminoso"], "missing_information": [], "confidence": 1.0
+      },
+      "top_k": 3,
+      "expected_candidate_ids": [
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000004",
+        "10000000-0000-4000-8000-000000000005"
+      ],
+      "expected_top_ids": [
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000004",
+        "10000000-0000-4000-8000-000000000005"
+      ]
+    },
+    {
+      "id": "semantic-only",
+      "scenario": "Mostly semantic preferences",
+      "original_request": "Quiero algo tranquilo y luminoso cerca del mar.",
+      "requirements": {
+        "operation_type": "unknown", "property_types": [], "locations": [],
+        "max_budget": null, "currency": null, "min_bedrooms": null, "min_bathrooms": null,
+        "parking_required": null, "pets_required": null, "furnished_preference": null,
+        "soft_preferences": ["tranquilo", "luminoso", "cerca del mar"],
+        "missing_information": ["operation_type", "property_type", "location", "budget"], "confidence": 1.0
+      },
+      "top_k": 3,
+      "expected_candidate_ids": [
+        "10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002",
+        "10000000-0000-4000-8000-000000000003", "10000000-0000-4000-8000-000000000004",
+        "10000000-0000-4000-8000-000000000005", "10000000-0000-4000-8000-000000000006",
+        "10000000-0000-4000-8000-000000000007", "10000000-0000-4000-8000-000000000008",
+        "10000000-0000-4000-8000-000000000009", "10000000-0000-4000-8000-000000000010",
+        "10000000-0000-4000-8000-000000000011", "10000000-0000-4000-8000-000000000012",
+        "10000000-0000-4000-8000-000000000013", "10000000-0000-4000-8000-000000000014",
+        "10000000-0000-4000-8000-000000000015", "10000000-0000-4000-8000-000000000017",
+        "10000000-0000-4000-8000-000000000018"
+      ],
+      "expected_top_ids": [
+        "10000000-0000-4000-8000-000000000003",
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000004"
+      ]
+    },
+    {
+      "id": "parking-three-bedrooms",
+      "scenario": "Mandatory parking and three bedrooms",
+      "original_request": "Necesito sí o sí estacionamiento y 3 dormitorios para arrendar un departamento.",
+      "requirements": {
+        "operation_type": "rent", "property_types": ["apartment"], "locations": [],
+        "max_budget": null, "currency": null, "min_bedrooms": 3, "min_bathrooms": null,
+        "parking_required": true, "pets_required": null, "furnished_preference": null,
+        "soft_preferences": [], "missing_information": ["location", "budget"], "confidence": 1.0
+      },
+      "top_k": 3,
+      "expected_candidate_ids": [
+        "10000000-0000-4000-8000-000000000003", "10000000-0000-4000-8000-000000000008",
+        "10000000-0000-4000-8000-000000000010", "10000000-0000-4000-8000-000000000011"
+      ],
+      "expected_top_ids": [
+        "10000000-0000-4000-8000-000000000003", "10000000-0000-4000-8000-000000000008",
+        "10000000-0000-4000-8000-000000000010"
+      ]
+    },
+    {
+      "id": "impossible",
+      "scenario": "Impossible hard constraints return zero",
+      "original_request": "Busco departamento en Viña del Mar por no más de 100 mil pesos.",
+      "requirements": {
+        "operation_type": "rent", "property_types": ["apartment"], "locations": ["Vina del Mar"],
+        "max_budget": 100000, "currency": "CLP", "min_bedrooms": null, "min_bathrooms": null,
+        "parking_required": null, "pets_required": null, "furnished_preference": null,
+        "soft_preferences": [], "missing_information": [], "confidence": 1.0
+      },
+      "top_k": 3, "expected_candidate_ids": [], "expected_top_ids": []
+    },
+    {
+      "id": "same-hard-bright-office",
+      "scenario": "Same hard constraints, bright home-office preference",
+      "original_request": "Departamento en Viña hasta 900 mil, dos dormitorios; luminoso y apto para home office.",
+      "requirements": {
+        "operation_type": "rent", "property_types": ["apartment"], "locations": ["Vina del Mar"],
+        "max_budget": 900000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": null,
+        "parking_required": null, "pets_required": null, "furnished_preference": null,
+        "soft_preferences": ["luminoso", "apto para home office"], "missing_information": [], "confidence": 1.0
+      },
+      "top_k": 3,
+      "expected_candidate_ids": [
+        "10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000003",
+        "10000000-0000-4000-8000-000000000004", "10000000-0000-4000-8000-000000000005"
+      ],
+      "expected_top_ids": [
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000003",
+        "10000000-0000-4000-8000-000000000005"
+      ]
+    },
+    {
+      "id": "same-hard-low-traffic",
+      "scenario": "Same hard constraints, quiet low-traffic preference",
+      "original_request": "Departamento en Viña hasta 900 mil, dos dormitorios; tranquilo y con poco flujo vehicular.",
+      "requirements": {
+        "operation_type": "rent", "property_types": ["apartment"], "locations": ["Vina del Mar"],
+        "max_budget": 900000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": null,
+        "parking_required": null, "pets_required": null, "furnished_preference": null,
+        "soft_preferences": ["tranquilo", "poco flujo vehicular"], "missing_information": [], "confidence": 1.0
+      },
+      "top_k": 3,
+      "expected_candidate_ids": [
+        "10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000003",
+        "10000000-0000-4000-8000-000000000004", "10000000-0000-4000-8000-000000000005"
+      ],
+      "expected_top_ids": [
+        "10000000-0000-4000-8000-000000000004",
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000003"
+      ]
+    },
+    {
+      "id": "unknown-property-field",
+      "scenario": "Unknown parking and bedrooms cannot satisfy mandatory requirements",
+      "original_request": "En Quilpué necesito departamento de dos dormitorios con estacionamiento hasta 500 mil.",
+      "requirements": {
+        "operation_type": "rent", "property_types": ["apartment"], "locations": ["Quilpue"],
+        "max_budget": 500000, "currency": "CLP", "min_bedrooms": 2, "min_bathrooms": null,
+        "parking_required": true, "pets_required": null, "furnished_preference": null,
+        "soft_preferences": [], "missing_information": [], "confidence": 1.0
+      },
+      "top_k": 3,
+      "expected_candidate_ids": ["10000000-0000-4000-8000-000000000015"],
+      "expected_top_ids": ["10000000-0000-4000-8000-000000000015"]
+    }
+  ]
+}

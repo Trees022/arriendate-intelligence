@@ -1,13 +1,17 @@
-# Structured Lead Extraction Evaluation
+# Lead Extraction and Property Matching Evaluation
 
 ## Scope
 
-The evaluation covers only the current structured-extraction contract. It deliberately excludes property filters, semantic rank, matches, recommendation claims, RAG, agents, and external actions.
+The evaluation covers the structured-extraction contract and the deterministic hard-constraint plus
+semantic-ranking contract. It deliberately excludes RAG, agents, external actions, and claims that a
+similarity score is a probability or a guarantee of suitability.
 
-Two versioned datasets are committed:
+Three versioned datasets are committed:
 
 - `evals/datasets/lead_extraction.v0.1.json`: 15 synthetic Spanish lead messages with stable IDs, scenario labels, reviewed field expectations, and deterministic fixture outputs.
 - `evals/datasets/lead_extraction_invalid.v0.1.json`: 7 malformed or incomplete outputs covering truncated JSON, missing keys, extra keys, strict types, unsupported enums, inconsistent unknown markers, and string booleans.
+- `evals/datasets/property_matching.v0.1.json`: 7 reviewed matching cases covering hard eligibility,
+  zero candidates, semantic reordering, and unknown required property facts.
 
 The valid cases cover CLP/UF/USD budgets, “lucas”, missing budget, missing/vague location, unknown or contradictory operation, multiple property types/locations, pets and parking as both positive and negative requirements, furnished preference, commercial property, and unverifiable soft preferences.
 
@@ -61,3 +65,31 @@ No live-model baseline is claimed until a real key, provider availability, and c
 The PostgreSQL integration job continues to use this deterministic fixture provider. Database
 validation covers persistence and rollback of successful, malformed, and incomplete extraction
 outputs, but it does not make or imply a live-model quality claim.
+
+## Property matching evaluation
+
+`evals/datasets/property_matching.v0.1.json` contains seven reviewed scenarios: budget/bedrooms/pets,
+mostly semantic preferences, mandatory parking and three bedrooms, impossible constraints, two
+identical hard candidate sets with different soft preferences, and an unknown property field under
+an active mandatory rule.
+
+```powershell
+.\.venv\Scripts\python.exe evals\scripts\evaluate_property_matching.py
+```
+
+The evaluator uses the production constraint evaluator, canonical text builders, grounded-reason
+builder, 18-property synthetic inventory, and deterministic 1536-dimension feature-hash provider.
+It makes no network call and does not claim live embedding quality.
+
+| Metric | Result |
+|---|---:|
+| Dataset/schema validity | 7/7 (100%) |
+| Exact candidate eligibility | 7/7 (100%) |
+| Reviewed Top K exact | 7/7 (100%) |
+| Hard-constraint precision | 100% |
+| Excluded-property leakage | 0 |
+| Score range validity | 100% |
+| Grounded reason validity | 7/7 (100%) |
+
+Similarity is evaluated only as deterministic ordering and valid range. It is not treated as a
+probability, conversion forecast, or universal semantic-quality metric.
