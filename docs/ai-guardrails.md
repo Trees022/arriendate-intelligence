@@ -32,12 +32,24 @@
 5. Raw generated evaluation reports stay Git-ignored by default.
 6. Public deployment is blocked until authentication and ownership-aware RLS policies exist.
 
+## Matching truth
+
+1. An LLM does not decide budget, counts, parking, pets, location, property type, or availability.
+2. Hard constraints are deterministic binary checks. Semantic similarity receives only eligible IDs.
+3. An active mandatory rule fails when its property fact is `NULL`; an absent requirement does not filter.
+4. Semantic text uses only persisted facts and soft preferences. No generated claim enters an embedding or explanation.
+5. Grounded reasons link a lead preference to an exact description, sector, amenity, or furnished fact.
+6. Zero candidates returns zero results plus aggregate exclusions; requirements are never relaxed automatically.
+7. Embedding keys, raw vectors, raw lead messages, and upstream error bodies are excluded from client responses and logs.
+
 ## Database truth
 
-1. This milestone does not ask the model to read, rank, recommend, or modify properties.
-2. Future matching cannot be inferred from the existence of structured requirements.
+1. Structured extraction never receives property inventory. The separate embedding provider sees
+   canonical property facts or lead soft-preference text, never database access or hard-rule authority.
+2. Only deterministic hard-eligible IDs reach semantic ranking; no model can restore an excluded row.
 3. Direct `anon` and `authenticated` access to extraction tables is revoked in the PostgreSQL migration.
 4. PostgreSQL integration tests assert both object privileges and actual `SET ROLE` behavior for
    `anon`, `authenticated`, and `service_role`; SQLite tests make no database-security claim.
 5. The server-side direct connection remains privileged in this internal milestone. A dedicated
    least-privilege database login and ownership-aware RLS policies are required before public use.
+6. Authentication, multitenancy, abuse prevention, and rate limiting remain outside this milestone.

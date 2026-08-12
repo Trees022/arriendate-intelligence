@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -107,6 +108,8 @@ class Property(Base):
     source_text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding_text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding_model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    embedding_provider: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    embedding_space_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     embedding_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -204,6 +207,101 @@ class AIRun(Base):
     status: Mapped[str] = mapped_column(String(20), default="running", nullable=False)
     error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class MatchingRun(Base):
+    __tablename__ = "matching_runs"
+    __table_args__ = (
+        CheckConstraint("requested_top_k BETWEEN 1 AND 10", name="matching_top_k_range"),
+        CheckConstraint(
+            "status IN ('running','succeeded','failed')", name="matching_status_allowed"
+        ),
+        CheckConstraint(
+            "candidate_count <= total_properties AND result_count <= candidate_count "
+            "AND result_count <= requested_top_k",
+            name="matching_count_consistency",
+        ),
+        CheckConstraint(
+            "(status = 'running' AND result_count = 0 AND error_code IS NULL "
+            "AND error_message IS NULL) OR "
+            "(status = 'succeeded' AND error_code IS NULL AND error_message IS NULL) OR "
+            "(status = 'failed' AND result_count = 0 AND error_code IS NOT NULL "
+            "AND error_message IS NOT NULL)",
+            name="matching_status_consistency",
+        ),
+        CheckConstraint(
+            "length(requirements_fingerprint) = 64", name="matching_fingerprint_length"
+        ),
+        CheckConstraint("length(embedding_space_id) = 64", name="matching_space_id_length"),
+        UniqueConstraint("id", "lead_id", name="matching_runs_id_lead_key"),
+        Index("matching_runs_lead_created_idx", "lead_id", "created_at"),
+        Index("matching_runs_current_lead_idx", "lead_id", "invalidated_at", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    lead_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    embedding_space_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    requirements_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    requested_top_k: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_properties: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    candidate_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    result_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    embedding_latency_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="running", nullable=False)
+    exclusion_summary: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    invalidated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PropertyMatch(Base):
+    __tablename__ = "property_matches"
+    __table_args__ = (
+        UniqueConstraint("run_id", "property_id", name="property_matches_run_property_key"),
+        UniqueConstraint("run_id", "rank", name="property_matches_run_rank_key"),
+        ForeignKeyConstraint(
+            ("run_id", "lead_id"),
+            ("matching_runs.id", "matching_runs.lead_id"),
+            ondelete="CASCADE",
+            name="property_matches_run_lead_fkey",
+        ),
+        Index("property_matches_run_rank_idx", "run_id", "rank"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    lead_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
+    )
+    property_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("properties.id", ondelete="RESTRICT"), nullable=False
+    )
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    semantic_score: Mapped[float | None] = mapped_column(Numeric(6, 5), nullable=True)
+    hard_constraint_matches: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    soft_match_reasons: Mapped[list[dict[str, str]]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    algorithm_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    embedding_model: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

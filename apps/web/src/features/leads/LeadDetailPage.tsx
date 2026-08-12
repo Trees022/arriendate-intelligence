@@ -1,16 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
-import { extractLead, getLead } from "../../lib/api";
+import { extractLead, generateLeadMatches, getLead, getLeadMatches } from "../../lib/api";
 import { formatDate, leadStatusLabel } from "../../lib/format";
 import type { LeadDetail } from "../../lib/types";
 import { AIRunsPanel } from "./AIRunsPanel";
 import { RequirementsPanel } from "./RequirementsPanel";
+import { MatchingPanel } from "./MatchingPanel";
 
 export function LeadDetailPage() {
   const { id = "" } = useParams();
   const queryClient = useQueryClient();
   const queryKey = ["lead", id] as const;
+  const matchesKey = ["lead-matches", id] as const;
   const query = useQuery({
     queryKey,
     queryFn: () => getLead(id),
@@ -19,6 +21,7 @@ export function LeadDetailPage() {
   const extraction = useMutation({
     mutationFn: () => extractLead(id),
     onSuccess: (result) => {
+      queryClient.removeQueries({ queryKey: matchesKey, exact: true });
       queryClient.setQueryData<LeadDetail>(queryKey, (current) => current ? ({
         ...current,
         status: result.lead_status,
@@ -27,6 +30,18 @@ export function LeadDetailPage() {
       }) : current);
     },
     onError: () => {
+      void queryClient.invalidateQueries({ queryKey });
+    },
+  });
+  const matches = useQuery({
+    queryKey: matchesKey,
+    queryFn: () => getLeadMatches(id),
+    enabled: Boolean(id && query.data?.requirements),
+  });
+  const matching = useMutation({
+    mutationFn: () => generateLeadMatches(id, 3),
+    onSuccess: (result) => {
+      queryClient.setQueryData(matchesKey, result);
       void queryClient.invalidateQueries({ queryKey });
     },
   });
@@ -83,11 +98,20 @@ export function LeadDetailPage() {
       ) : null}
 
       {lead.requirements ? (
-        <RequirementsPanel
-          requirements={lead.requirements}
-          processing={extraction.isPending}
-          onReprocess={() => extraction.mutate()}
-        />
+        <>
+          <RequirementsPanel
+            requirements={lead.requirements}
+            processing={extraction.isPending}
+            onReprocess={() => extraction.mutate()}
+          />
+          <MatchingPanel
+            matches={matches.data}
+            loading={matches.isPending}
+            generating={matching.isPending}
+            error={matching.isError ? matching.error.message : matches.isError ? matches.error.message : null}
+            onGenerate={() => matching.mutate()}
+          />
+        </>
       ) : (
         <section className="panel next-stage-card extraction-card">
           <div>

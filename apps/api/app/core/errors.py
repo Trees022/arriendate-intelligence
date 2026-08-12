@@ -42,3 +42,12 @@ class InvalidAIOutputError(AppError):
                 "guardado y no se aplicaron cambios."
             ),
         )
+
+
+class EmbeddingProviderUnavailableError(AppError):
+    def __init__(self, detail: str, *, timeout: bool = False) -> None:
+        super().__init__(
+            status_code=504 if timeout else 503,
+            code="embedding_provider_timeout" if timeout else "embedding_provider_unavailable",
+            detail=detail,
+        )

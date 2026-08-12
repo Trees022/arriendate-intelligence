@@ -1,3 +1,4 @@
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -16,7 +17,10 @@ class LeadRepository:
         return await self.session.get(Lead, lead_id)
 
     async def get_by_idempotency_key(self, key: UUID) -> Lead | None:
-        return await self.session.scalar(select(Lead).where(Lead.idempotency_key == key))
+        return cast(
+            Lead | None,
+            await self.session.scalar(select(Lead).where(Lead.idempotency_key == key)),
+        )
 
     async def create_or_get(self, payload: LeadCreate, idempotency_key: UUID) -> Lead:
         existing = await self.get_by_idempotency_key(idempotency_key)

@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -48,6 +49,43 @@ class Database:
             return
         async with self.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+            property_columns = {
+                row[1]
+                for row in (await connection.execute(text("pragma table_info(properties)")))
+            }
+            matching_columns = {
+                row[1]
+                for row in (await connection.execute(text("pragma table_info(matching_runs)")))
+            }
+            if "embedding_provider" not in property_columns:
+                await connection.execute(
+                    text("alter table properties add column embedding_provider varchar(80)")
+                )
+            if "embedding_space_id" not in property_columns:
+                await connection.execute(
+                    text("alter table properties add column embedding_space_id varchar(64)")
+                )
+            legacy_matching_columns = {
+                "requirements_fingerprint":
+                    "varchar(64) not null default '00000000000000000000000000000000"
+                    "00000000000000000000000000000000'",
+                "embedding_space_id":
+                    "varchar(64) not null default '00000000000000000000000000000000"
+                    "00000000000000000000000000000000'",
+                "invalidated_at": "datetime",
+            }
+            for column, definition in legacy_matching_columns.items():
+                if column not in matching_columns:
+                    await connection.execute(
+                        text(f"alter table matching_runs add column {column} {definition}")
+                    )
+            if matching_columns and "invalidated_at" not in matching_columns:
+                await connection.execute(
+                    text(
+                        "update matching_runs set invalidated_at = CURRENT_TIMESTAMP "
+                        "where invalidated_at is null"
+                    )
+                )
 
     @asynccontextmanager
     async def session(self) -> AsyncIterator[AsyncSession]:

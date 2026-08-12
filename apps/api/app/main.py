@@ -16,14 +16,18 @@ from app.core.errors import AppError
 from app.core.settings import Settings, get_settings
 from app.db.seed import seed_demo_properties
 from app.db.session import Database
+from app.embeddings.contracts import EmbeddingProvider
+from app.embeddings.factory import build_embedding_provider
 
 
 def create_app(
     settings: Settings | None = None,
     structured_generator: StructuredGenerator | None = None,
+    embedding_provider: EmbeddingProvider | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     generator = structured_generator or build_structured_generator(app_settings)
+    embeddings = embedding_provider or build_embedding_provider(app_settings)
     logging.basicConfig(
         level=app_settings.log_level,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -47,6 +51,7 @@ def create_app(
     )
     application.state.settings = app_settings
     application.state.structured_generator = generator
+    application.state.embedding_provider = embeddings
     application.add_middleware(
         CORSMiddleware,
         allow_origins=app_settings.cors_origins,

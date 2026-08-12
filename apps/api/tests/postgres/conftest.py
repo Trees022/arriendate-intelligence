@@ -126,3 +126,8 @@ def postgres_test_database() -> Iterator[PostgresTestDatabase]:
 def clean_application_rows(postgres_test_database: PostgresTestDatabase) -> None:
     with psycopg.connect(postgres_test_database.dsn) as connection:
         connection.execute("truncate table public.leads cascade")
+        connection.execute(
+            "update public.properties set embedding = null, embedding_text = description, "
+            "embedding_model = null, embedding_provider = null, embedding_space_id = null, "
+            "embedding_updated_at = null"
+        )

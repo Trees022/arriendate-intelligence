@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.contracts import StructuredGenerator
 from app.core.settings import Settings
 from app.db.session import Database
+from app.embeddings.contracts import EmbeddingProvider
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -28,5 +29,11 @@ def get_app_settings(request: Request) -> Settings:
     return settings
 
 
+def get_embedding_provider(request: Request) -> EmbeddingProvider:
+    provider: EmbeddingProvider = request.app.state.embedding_provider
+    return provider
+
+
 GeneratorDep = Annotated[StructuredGenerator, Depends(get_structured_generator)]
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
+EmbeddingProviderDep = Annotated[EmbeddingProvider, Depends(get_embedding_provider)]

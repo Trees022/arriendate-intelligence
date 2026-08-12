@@ -19,6 +19,44 @@ HTTP router → application service → provider protocol + domain validation �
 
 No provider SDK type crosses into routes, repositories, or response schemas.
 
+## Matching path
+
+```text
+lead_requirements
+  -> ConstraintEvaluator (binary expected/actual/passed checks)
+  -> eligible property IDs
+  -> canonical property and soft-preference lead embeddings
+  -> PostgreSQL `embedding <=> query_vector` over eligible IDs only
+  -> persisted ranks, scores, passed checks, and fact-backed reasons
+```
+
+Hard rules cover availability, explicit operation, explicit property type, explicit location,
+currency/budget, minimum bedrooms, minimum bathrooms, required parking, and required pets. A
+`null` requirement does not filter. `false` for parking or pets does not prohibit those features.
+When an active rule needs a property value and that value is unknown, the property fails. Furnished
+and free-text preferences are soft only.
+
+Location matching is exact after case, whitespace, punctuation, and accent normalization against
+city, sector, and stable city/sector combinations. It deliberately performs no fuzzy or semantic
+location expansion.
+
+`EmbeddingProvider` is independent from `StructuredGenerator`. Property text has a stable fact-only
+order; lead semantic text contains only `soft_preferences` and the optional furnished preference.
+Production ranking uses pgvector cosine distance (`<=>`). API similarity is
+`clamp((cosine_similarity + 1) / 2, 0, 1)` and is a ranking signal, not a probability. Ties use
+property UUID ascending. Candidate IDs are in the SQL `WHERE`, so excluded properties cannot return.
+
+Embeddings are reused only while canonical text, provider, model, vector-space fingerprint, vector
+presence, and update timestamp agree.
+Otherwise the server batches regeneration into the existing `vector(1536)`. Exact search is
+intentional for 18 rows; no HNSW index is justified without representative scale and query plans.
+
+Matching persists outside `ai_runs`: `matching_runs` stores counts, latency, provider/model/space,
+algorithm version, requirement fingerprint, invalidation timestamp, status, aggregate exclusions,
+and bounded errors; `property_matches` stores rank, similarity, passed hard checks, and grounded soft
+reasons. A composite foreign key prevents a match from naming a lead different from its run. Neither
+table stores raw lead text nor vectors.
+
 ## Write paths
 
 ### Lead intake
@@ -93,4 +131,6 @@ work.
 
 ## Explicit boundary
 
-This milestone ends after structured extraction, persistence, failure handling, evaluation, and observability. Property matching, embeddings, RAG, agents, workflow integrations, and optimization research remain outside the code path.
+This milestone ends after structured extraction, hard-constraint property matching, semantic ranking,
+persistence, failure handling, evaluation, and observability. RAG, agents, workflow integrations, and
+optimization research remain outside the code path.

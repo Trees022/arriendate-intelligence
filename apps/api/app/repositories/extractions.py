@@ -1,12 +1,14 @@
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.schemas import LeadRequirements
-from app.db.models import AIRun, LeadRequirement
+from app.db.models import AIRun, LeadRequirement, MatchingRun
 
 
 class ExtractionRepository:
@@ -36,8 +38,11 @@ class ExtractionRepository:
         return run
 
     async def get_requirements(self, lead_id: UUID) -> LeadRequirement | None:
-        return await self.session.scalar(
-            select(LeadRequirement).where(LeadRequirement.lead_id == lead_id)
+        return cast(
+            LeadRequirement | None,
+            await self.session.scalar(
+                select(LeadRequirement).where(LeadRequirement.lead_id == lead_id)
+            ),
         )
 
     async def list_runs(self, lead_id: UUID, *, limit: int = 10) -> list[AIRun]:
@@ -109,6 +114,14 @@ class ExtractionRepository:
             record.prompt_version = prompt_version
         await self.session.flush()
         return record
+
+    async def invalidate_matching_runs(self, lead_id: UUID) -> None:
+        """Retain historical recommendations while making them ineligible as current."""
+        await self.session.execute(
+            update(MatchingRun)
+            .where(MatchingRun.lead_id == lead_id, MatchingRun.invalidated_at.is_(None))
+            .values(invalidated_at=datetime.now(UTC))
+        )
 
     async def mark_run_succeeded(
         self,

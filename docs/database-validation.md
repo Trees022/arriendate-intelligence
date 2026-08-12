@@ -110,7 +110,10 @@ provider mocks, and portable ORM behavior:
 PostgreSQL validates what SQLite cannot: migration order, extensions, native arrays, `vector(1536)`,
 catalog types/defaults/nullability, constraints, indexes, foreign keys, triggers, timezone-aware
 timestamps, RLS, grants, seed replay, transaction rollback, serialization, idempotency races, and
-concurrent requirement upserts.
+concurrent requirement upserts. Matching coverage also validates vector storage/readback, cosine
+distance, `NULL` embeddings, hard-gated vector ordering, `top_k`, persistence, deterministic ties,
+cache vector-space identity, historical invalidation, same-lead concurrency, and the requirements-change
+race during an in-flight match.
 
 ## CI architecture
 
@@ -127,7 +130,7 @@ platform configuration.
 
 ## Current security model
 
-- RLS is enabled on `leads`, `properties`, `lead_requirements`, and `ai_runs`.
+- RLS is enabled on `leads`, `properties`, `lead_requirements`, `ai_runs`, `matching_runs`, and `property_matches`.
 - There are intentionally no permissive policies in the unauthenticated internal milestone.
 - `anon` and `authenticated` have no table privileges; tests also prove RLS remains deny-by-default
   if a read or insert grant is introduced temporarily.

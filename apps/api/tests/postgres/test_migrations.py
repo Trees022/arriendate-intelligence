@@ -11,6 +11,8 @@ pytestmark = pytest.mark.postgres
 EXPECTED_MIGRATIONS = (
     "20260809200000_initial_inventory_and_leads.sql",
     "20260810120000_structured_lead_extraction.sql",
+    "20260811120000_semantic_property_matching.sql",
+    "20260812120000_matching_correctness_hardening.sql",
 )
 
 EXPECTED_COLUMN_TYPES = {
@@ -48,6 +50,8 @@ EXPECTED_COLUMN_TYPES = {
         "embedding_text": "text",
         "embedding": "vector(1536)",
         "embedding_model": "text",
+        "embedding_provider": "text",
+        "embedding_space_id": "text",
         "embedding_updated_at": "timestamp with time zone",
         "created_at": "timestamp with time zone",
         "updated_at": "timestamp with time zone",
@@ -92,6 +96,40 @@ EXPECTED_COLUMN_TYPES = {
         "error_message": "text",
         "created_at": "timestamp with time zone",
     },
+    "matching_runs": {
+        "id": "uuid",
+        "lead_id": "uuid",
+        "provider": "text",
+        "model": "text",
+        "algorithm_version": "text",
+        "embedding_space_id": "text",
+        "requirements_fingerprint": "text",
+        "requested_top_k": "smallint",
+        "total_properties": "integer",
+        "candidate_count": "integer",
+        "result_count": "integer",
+        "latency_ms": "integer",
+        "embedding_latency_ms": "integer",
+        "status": "text",
+        "exclusion_summary": "jsonb",
+        "error_code": "text",
+        "error_message": "text",
+        "invalidated_at": "timestamp with time zone",
+        "created_at": "timestamp with time zone",
+    },
+    "property_matches": {
+        "id": "uuid",
+        "run_id": "uuid",
+        "lead_id": "uuid",
+        "property_id": "uuid",
+        "rank": "smallint",
+        "semantic_score": "numeric(6,5)",
+        "hard_constraint_matches": "jsonb",
+        "soft_match_reasons": "jsonb",
+        "algorithm_version": "text",
+        "embedding_model": "text",
+        "created_at": "timestamp with time zone",
+    },
 }
 
 NULLABLE_COLUMNS = {
@@ -107,6 +145,8 @@ NULLABLE_COLUMNS = {
         "square_meters",
         "embedding",
         "embedding_model",
+        "embedding_provider",
+        "embedding_space_id",
         "embedding_updated_at",
     },
     "lead_requirements": {
@@ -129,6 +169,8 @@ NULLABLE_COLUMNS = {
         "error_code",
         "error_message",
     },
+    "matching_runs": {"error_code", "error_message", "invalidated_at"},
+    "property_matches": {"semantic_score", "embedding_model"},
 }
 
 
@@ -169,7 +211,10 @@ def test_columns_types_nullability_and_defaults_match_the_schema(
             join pg_namespace n on n.oid = c.relnamespace
             left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
             where n.nspname = 'public'
-              and c.relname in ('leads', 'properties', 'lead_requirements', 'ai_runs')
+              and c.relname in (
+                'leads', 'properties', 'lead_requirements', 'ai_runs',
+                'matching_runs', 'property_matches'
+              )
               and a.attnum > 0 and not a.attisdropped
             order by c.relname, a.attnum
             """
@@ -196,6 +241,11 @@ def test_columns_types_nullability_and_defaults_match_the_schema(
     assert defaults[("ai_runs", "latency_ms")] == "0"
     assert defaults[("ai_runs", "validation_passed")] == "false"
     assert defaults[("ai_runs", "status")] == "'running'::text"
+    assert defaults[("matching_runs", "status")] == "'running'::text"
+    assert defaults[("matching_runs", "candidate_count")] == "0"
+    assert defaults[("matching_runs", "exclusion_summary")] == "'[]'::jsonb"
+    assert defaults[("property_matches", "hard_constraint_matches")] == "'[]'::jsonb"
+    assert defaults[("property_matches", "soft_match_reasons")] == "'[]'::jsonb"
 
 
 def test_indexes_foreign_keys_unique_and_check_constraints_exist(
@@ -225,10 +275,15 @@ def test_indexes_foreign_keys_unique_and_check_constraints_exist(
         "properties_bedrooms_idx",
         "properties_amenities_idx",
         "ai_runs_lead_created_idx",
+        "matching_runs_lead_created_idx",
+        "matching_runs_current_lead_idx",
+        "property_matches_run_rank_idx",
     } <= indexes.keys()
     assert "USING gin (amenities)" in indexes["properties_amenities_idx"]
     assert "WHERE (monthly_price IS NOT NULL)" in indexes["properties_monthly_price_idx"]
     assert "created_at DESC" in indexes["ai_runs_lead_created_idx"]
+    assert "created_at DESC" in indexes["matching_runs_lead_created_idx"]
+    assert "WHERE (invalidated_at IS NULL)" in indexes["matching_runs_current_lead_idx"]
 
     definitions = [(table, kind, definition) for table, kind, definition in constraint_rows]
     assert any(
@@ -251,7 +306,32 @@ def test_indexes_foreign_keys_unique_and_check_constraints_exist(
         and "REFERENCES properties(id) ON DELETE SET NULL" in definition
         for table, kind, definition in definitions
     )
-    assert sum(kind == "c" for _, kind, _ in definitions) >= 19
+    assert any(
+        table == "matching_runs"
+        and kind == "f"
+        and "REFERENCES leads(id) ON DELETE CASCADE" in definition
+        for table, kind, definition in definitions
+    )
+    assert any(
+        table == "property_matches"
+        and kind == "u"
+        and "UNIQUE (run_id, rank)" in definition
+        for table, kind, definition in definitions
+    )
+    assert any(
+        table == "property_matches"
+        and kind == "f"
+        and "FOREIGN KEY (run_id, lead_id)" in definition
+        and "REFERENCES matching_runs(id, lead_id) ON DELETE CASCADE" in definition
+        for table, kind, definition in definitions
+    )
+    assert any(
+        table == "property_matches"
+        and kind == "f"
+        and "REFERENCES properties(id) ON DELETE RESTRICT" in definition
+        for table, kind, definition in definitions
+    )
+    assert sum(kind == "c" for _, kind, _ in definitions) >= 23
 
 
 def test_constraints_reject_invalid_rows(postgres_test_database: PostgresTestDatabase) -> None:
@@ -295,6 +375,52 @@ def test_constraints_reject_invalid_rows(postgres_test_database: PostgresTestDat
         "insert into public.ai_runs (run_type, provider, model, latency_ms) "
         "values ('lead_extraction', 'fixture', 'fixture-v1', -1)",
         "23514",
+    )
+
+    lead_one = uuid4()
+    lead_two = uuid4()
+    run_id = uuid4()
+    with psycopg.connect(postgres_test_database.dsn) as connection:
+        connection.execute(
+            "insert into public.leads (id, original_request, idempotency_key) values "
+            "(%s, 'Solicitud sintética válida uno.', %s), "
+            "(%s, 'Solicitud sintética válida dos.', %s)",
+            (lead_one, uuid4(), lead_two, uuid4()),
+        )
+        connection.execute(
+            "insert into public.matching_runs "
+            "(id, lead_id, provider, model, algorithm_version, embedding_space_id, "
+            "requirements_fingerprint, requested_top_k, total_properties, candidate_count, "
+            "result_count, status) values (%s, %s, 'fixture', 'fixture', 'v1', %s, %s, "
+            "3, 1, 1, 1, 'succeeded')",
+            (run_id, lead_one, "a" * 64, "b" * 64),
+        )
+
+    _expect_sqlstate(
+        postgres_test_database.dsn,
+        "insert into public.matching_runs "
+        "(lead_id, provider, model, algorithm_version, embedding_space_id, "
+        "requirements_fingerprint, requested_top_k, total_properties, candidate_count) "
+        f"values ('{lead_one}', 'fixture', 'fixture', 'v1', '{'a' * 64}', "
+        f"'{'b' * 64}', 3, 1, 2)",
+        "23514",
+    )
+    _expect_sqlstate(
+        postgres_test_database.dsn,
+        "insert into public.matching_runs "
+        "(lead_id, provider, model, algorithm_version, embedding_space_id, "
+        "requirements_fingerprint, requested_top_k, status) "
+        f"values ('{lead_one}', 'fixture', 'fixture', 'v1', '{'a' * 64}', "
+        f"'{'b' * 64}', 3, 'failed')",
+        "23514",
+    )
+    _expect_sqlstate(
+        postgres_test_database.dsn,
+        "insert into public.property_matches "
+        "(run_id, lead_id, property_id, rank, algorithm_version) "
+        f"values ('{run_id}', '{lead_two}', "
+        "'10000000-0000-4000-8000-000000000001', 1, 'v1')",
+        "23503",
     )
 
 

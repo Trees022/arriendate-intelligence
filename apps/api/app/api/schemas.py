@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -139,3 +140,45 @@ class PropertyListResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     database: str
+
+
+class ConstraintCheckResponse(BaseModel):
+    constraint: str
+    expected: Any
+    actual: Any
+    passed: bool
+
+
+class SoftMatchReasonResponse(BaseModel):
+    preference: str
+    property_fact: str
+
+
+class ExclusionSummaryResponse(BaseModel):
+    constraint: str
+    excluded_count: int
+
+
+class PropertyMatchResponse(BaseModel):
+    rank: int
+    semantic_score: float | None
+    hard_constraint_matches: list[ConstraintCheckResponse]
+    soft_match_reasons: list[SoftMatchReasonResponse]
+    property: PropertyResponse
+
+
+class LeadMatchesResponse(BaseModel):
+    status: Literal["not_run", "succeeded"]
+    run_id: UUID | None
+    algorithm_version: str | None
+    embedding_provider: str | None
+    embedding_model: str | None
+    requested_top_k: int | None
+    total_properties: int
+    candidate_count: int
+    result_count: int
+    latency_ms: int | None
+    embedding_latency_ms: int | None
+    exclusion_summary: list[ExclusionSummaryResponse]
+    items: list[PropertyMatchResponse]
+    created_at: datetime | None
