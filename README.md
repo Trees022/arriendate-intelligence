@@ -1,876 +1,243 @@
 # Arriendate Intelligence
 
-> **Applied AI system for structured real-estate lead intelligence and hybrid property matching.**
+An internal real-estate operating layer that turns an unstructured lead into validated, traceable CRM data.
 
-Arriendate Intelligence transforms unstructured real-estate conversations into validated requirements, applies deterministic business constraints, and ranks eligible properties using semantic similarity with PostgreSQL + pgvector.
+> Current milestone: deterministic hard constraints plus semantic property ranking with pgvector.
 
-The system is intentionally designed around a simple principle:
+This repository is intentionally incremental. This milestone does **not** contain RAG, autonomous agents, n8n workflows, outbound messages, multitenancy, or quantum optimization.
 
-**AI can assist with interpretation and ranking, but deterministic rules remain responsible for eligibility and data integrity.**
+## Product flow
 
----
+```text
+original lead message → durable lead record → explicit human extraction action
+                      → strict provider JSON Schema → strict server validation
+                      → requirements + lead status + observable AI run
+```
 
-## Overview
+The original request is stored before any AI call. A malformed, incomplete, refused, or unavailable provider response never creates or replaces structured requirements. The failed attempt remains visible as sanitized `ai_runs` metadata.
 
-A real-estate lead rarely arrives as structured data.
-
-A customer might write:
-
-> "Busco departamento en Providencia o Ñuñoa, máximo 850 mil,
-> ojalá con 2 dormitorios, estacionamiento y que acepten mascotas."
-
-Arriendate Intelligence converts that message into a traceable workflow:
+## Architecture
 
 ```mermaid
 flowchart LR
-    A["Unstructured Lead"] --> B["Structured AI Extraction"]
-    B --> C["Validated Requirements"]
-    C --> D["Deterministic Hard Constraints"]
-    D --> E["Eligible Properties"]
-    E --> F["Embedding Generation"]
-    F --> G["pgvector Semantic Ranking"]
-    G --> H["Grounded Top-N Matches"]
-    H --> I["Human Review"]
-
-    style A stroke-width:2px
-    style D stroke-width:2px
-    style G stroke-width:2px
-    style I stroke-width:2px
+    Browser[React + TypeScript] -->|JSON /api| API[FastAPI]
+    API --> Extraction[Lead extraction service]
+    Extraction --> Provider[StructuredGenerator protocol]
+    Provider --> Responses[OpenAI-compatible Responses API]
+    Extraction --> Validation[Strict Pydantic schema]
+    Validation --> Repository[SQLAlchemy repositories]
+    Repository --> DB[(Supabase PostgreSQL)]
+    Repository -. local/test fallback .-> SQLite[(SQLite)]
 ```
 
-The AI model never directly decides which properties are valid.
+- FastAPI is the only browser-facing data and AI boundary.
+- The provider adapter returns text and telemetry, never trusted domain objects.
+- `lead_requirements` is updated only after strict server validation succeeds.
+- Every attempt creates a durable `ai_runs` row before the external call.
+- Prompts and raw model outputs are not stored in `ai_runs`; only a prompt version and sanitized metadata are persisted.
+- SQL under `supabase/migrations` is authoritative for PostgreSQL. SQLite is a zero-install local/test adapter.
 
-Eligibility is resolved first through deterministic constraints. Semantic search only ranks properties that have already passed those rules.
+See [architecture decisions](docs/architecture.md), [matching contract](docs/matching.md), [AI guardrails](docs/ai-guardrails.md), [evaluation methodology](docs/evaluation.md), and the approved [implementation plan](docs/implementation-plan.md).
 
----
+## Technology
 
-# Why I Built It
-
-Traditional property search usually depends on structured filters:
-
-- location
-- price
-- bedrooms
-- bathrooms
-- parking
-- property type
-- rental/sale operation
-
-But customers do not naturally communicate through database filters.
-
-They communicate through conversations.
-
-Arriendate Intelligence explores how an AI layer can translate those conversations into reliable domain data without letting probabilistic model output bypass business rules or database constraints.
-
-The project focuses on:
-
-- structured LLM outputs
-- deterministic validation
-- observable AI execution
-- hybrid retrieval
-- semantic ranking
-- PostgreSQL integrity
-- AI evaluation
-- human-in-the-loop workflows
-
----
-
-# System Architecture
-
-```mermaid
-flowchart TB
-
-    subgraph Client["Frontend"]
-        UI["React + TypeScript"]
-        Query["TanStack Query"]
-    end
-
-    subgraph API["Application Layer"]
-        FastAPI["FastAPI"]
-        Services["Domain Services"]
-        Validation["Pydantic Validation"]
-    end
-
-    subgraph AI["AI Layer"]
-        Extraction["Structured Lead Extraction"]
-        Provider["Provider Contract"]
-        Embeddings["Embedding Provider"]
-        Eval["AI Evaluation"]
-    end
-
-    subgraph Matching["Matching Engine"]
-        Constraints["Hard Constraint Engine"]
-        Canonical["Canonical Property Text"]
-        Ranking["Semantic Ranking"]
-    end
-
-    subgraph Data["Data Layer"]
-        SQLAlchemy["SQLAlchemy"]
-        PostgreSQL["Supabase PostgreSQL"]
-        PgVector["pgvector"]
-        RLS["RLS / Grants / Constraints"]
-    end
-
-    UI --> Query
-    Query --> FastAPI
-
-    FastAPI --> Services
-    Services --> Validation
-
-    Services --> Extraction
-    Extraction --> Provider
-    Extraction --> Eval
-
-    Services --> Constraints
-    Constraints --> Canonical
-    Canonical --> Embeddings
-    Embeddings --> Ranking
-
-    Ranking --> PgVector
-
-    Services --> SQLAlchemy
-    SQLAlchemy --> PostgreSQL
-    PostgreSQL --> PgVector
-    PostgreSQL --> RLS
-```
-
-### Architectural boundaries
-
-The browser never communicates directly with privileged database roles or AI providers.
-
-```text
-Browser
-   │
-   ▼
-FastAPI
-   ├── Domain validation
-   ├── AI provider boundary
-   ├── Matching engine
-   └── Persistence layer
-            │
-            ▼
-      PostgreSQL / Supabase
-```
-
-FastAPI is the trusted boundary for:
-
-- AI execution
-- validation
-- database access
-- matching
-- observability
-- error sanitization
-
----
-
-# AI Lead Extraction
-
-The extraction pipeline uses structured model output rather than parsing arbitrary natural-language responses.
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant API as FastAPI
-    participant DB as PostgreSQL
-    participant AI as AI Provider
-    participant V as Pydantic
-
-    U->>API: Submit lead message
-
-    API->>DB: Persist original message
-
-    U->>API: Request extraction
-
-    API->>DB: Create AI execution record
-
-    API->>AI: Versioned prompt + JSON Schema
-
-    AI-->>API: Structured response
-
-    API->>V: Strict server validation
-
-    alt Valid response
-        V-->>API: Valid requirements
-        API->>DB: Persist requirements
-        API->>DB: Mark AI run successful
-    else Invalid response
-        V-->>API: Reject output
-        API->>DB: Preserve previous valid state
-        API->>DB: Mark AI run failed
-    end
-```
-
-Important properties of the pipeline:
-
-- the original message is persisted before AI execution;
-- model output is treated as untrusted input;
-- structured output is validated again server-side;
-- malformed output cannot silently replace valid requirements;
-- missing information remains unknown rather than being invented;
-- execution metadata is persisted for observability;
-- provider credentials remain server-side.
-
----
-
-# Hybrid Property Matching
-
-The matching pipeline deliberately separates **eligibility** from **semantic relevance**.
-
-```mermaid
-flowchart TD
-
-    L["Structured Lead Requirements"]
-
-    L --> HC["Hard Constraint Engine"]
-
-    HC --> OP["Operation"]
-    HC --> LOC["Location"]
-    HC --> TYPE["Property Type"]
-    HC --> PRICE["Budget + Currency"]
-    HC --> BED["Bedrooms"]
-    HC --> BATH["Bathrooms"]
-    HC --> PARK["Parking"]
-    HC --> PET["Pets"]
-
-    OP --> ELIGIBLE
-    LOC --> ELIGIBLE
-    TYPE --> ELIGIBLE
-    PRICE --> ELIGIBLE
-    BED --> ELIGIBLE
-    BATH --> ELIGIBLE
-    PARK --> ELIGIBLE
-    PET --> ELIGIBLE
-
-    ELIGIBLE["Eligible Property Set"]
-
-    ELIGIBLE --> TEXT["Canonical Property Representation"]
-    TEXT --> EMB["Embeddings"]
-    EMB --> PG["pgvector"]
-    PG --> RANK["Cosine Similarity Ranking"]
-    RANK --> TOP["Grounded Top-N"]
-```
-
-### Why constraints come first
-
-Vector similarity is useful for preferences such as:
-
-> "quiet neighborhood with good connectivity"
-
-but should not override requirements such as:
-
-> maximum rent = 800,000 CLP
-
-A semantically attractive property above the user's explicit budget should not appear simply because its embedding is similar.
-
-Therefore:
-
-```text
-Eligibility → deterministic
-Preference ranking → semantic
-Final decision → human
-```
-
----
-
-# Matching Correctness
-
-The matching layer treats several conditions conservatively.
-
-Unknown information does not automatically satisfy a requirement.
-
-Examples include:
-
-- availability
-- operation type
-- location
-- property type
-- budget
-- currency
-- bedroom count
-- bathroom count
-- parking
-- pet policy
-
-Budget comparison requires an explicit compatible operation and currency.
-
-The system does **not** infer currency conversions or silently select an alternative price column.
-
-Semantic similarity is treated as a **ranking signal**, not as a probability of compatibility.
-
----
-
-# AI Observability
-
-Every extraction attempt has an observable lifecycle.
-
-```mermaid
-stateDiagram-v2
-    [*] --> Created
-    Created --> Running
-
-    Running --> Successful
-    Running --> Failed
-    Running --> Rejected
-
-    Successful --> [*]
-    Failed --> [*]
-    Rejected --> [*]
-```
-
-Telemetry is intentionally sanitized.
-
-The system can preserve information such as:
-
-- execution status
-- provider
-- model configuration
-- prompt version
-- latency
-- token usage when available
-- failure category
-
-without persisting sensitive provider responses, credentials, or prompts unnecessarily.
-
----
-
-# Reliability and Guardrails
-
-Arriendate Intelligence treats AI as an unreliable external dependency rather than a trusted database writer.
-
-### Structured outputs
-
-Machine-consumed AI output follows an explicit schema.
-
-### Server-side validation
-
-Provider validation is not considered sufficient. Responses are revalidated through Pydantic before entering domain state.
-
-### Stale-state protection
-
-Matching and extraction operations contain protections against results being reused after their underlying inputs change.
-
-### Embedding cache identity
-
-Cached vectors are only reusable when their relevant identity remains compatible, including:
-
-- canonical content
-- provider
-- model
-- vector-space configuration
-
-### Bounded retries
-
-Only transient provider failures are eligible for bounded transport retries.
-
-### Human-triggered execution
-
-Extraction and matching remain explicit actions.
-
-There is no autonomous outbound communication.
-
----
-
-# PostgreSQL & Supabase
-
-PostgreSQL is treated as an integrity boundary, not simply as storage.
-
-```mermaid
-flowchart LR
-    APP["FastAPI"] --> PG["PostgreSQL"]
-
-    PG --> FK["Foreign Keys"]
-    PG --> CHECK["CHECK Constraints"]
-    PG --> IDX["Indexes"]
-    PG --> VECTOR["pgvector"]
-    PG --> RLS["RLS"]
-    PG --> GRANTS["Role Grants"]
-
-    TEST["Integration Tests"] --> PG
-```
-
-The repository contains authoritative migrations for the PostgreSQL implementation.
-
-The integration suite validates behavior against a real PostgreSQL environment rather than relying exclusively on SQLite mocks.
-
-The local Supabase stack has also been used to validate:
-
-- migrations
-- database reset reproducibility
-- PostgreSQL
-- pgvector
-- RLS
-- grants
-- PostgREST access behavior
-- application persistence
-- browser E2E flows
-
----
-
-# Evaluation Strategy
-
-AI functionality is tested independently from live provider availability.
-
-```mermaid
-flowchart LR
-    DATA["Versioned Evaluation Dataset"]
-    DATA --> FIXTURE["Deterministic Provider"]
-    DATA --> INVALID["Invalid Output Cases"]
-
-    FIXTURE --> SCHEMA["Schema Validation"]
-    FIXTURE --> EXPECTED["Expected Fields"]
-
-    INVALID --> REJECT["Rejection Tests"]
-
-    SCHEMA --> REPORT["Evaluation Report"]
-    EXPECTED --> REPORT
-    REJECT --> REPORT
-```
-
-This allows regression testing without:
-
-- API keys
-- network dependencies
-- provider cost
-- nondeterministic model behavior
-
-Live provider evaluation is intentionally opt-in.
-
----
-
-# Engineering Journey
-
-This repository was built incrementally rather than as a single generated implementation.
-
-Each major capability was developed and hardened through separate branches and pull requests.
-
-```mermaid
-gitGraph
-    commit id: "Initial vertical slice"
-
-    branch structured-extraction
-    checkout structured-extraction
-    commit id: "Structured AI extraction"
-    commit id: "Evaluation + guardrails"
-    checkout main
-    merge structured-extraction tag: "PR #2"
-
-    branch postgres-hardening
-    checkout postgres-hardening
-    commit id: "PostgreSQL integrity"
-    checkout main
-    merge postgres-hardening tag: "PR #4"
-
-    branch supabase-validation
-    checkout supabase-validation
-    commit id: "Local Supabase validation"
-    checkout main
-    merge supabase-validation tag: "PR #5"
-
-    branch semantic-matching
-    checkout semantic-matching
-    commit id: "Hybrid property matching"
-    checkout main
-    merge semantic-matching tag: "PR #6"
-```
-
-### Milestone 1 — Structured AI extraction
-
-**PR #2**
-
-Introduced:
-
-- provider-independent structured generation
-- versioned extraction prompts
-- strict JSON Schema
-- Pydantic validation
-- AI execution tracing
-- deterministic evaluation
-- malformed-output handling
-- E2E extraction workflow
-
-This milestone established the project's core AI boundary.
-
----
-
-### Milestone 2 — PostgreSQL hardening
-
-**PR #4**
-
-Moved the persistence layer toward production-like correctness with PostgreSQL-specific validation and stronger database invariants.
-
-The goal was to ensure that application-level validation was reinforced by database-level integrity.
-
----
-
-### Milestone 3 — Supabase integration validation
-
-**PR #5**
-
-Validated the application against a complete local Supabase environment.
-
-This included:
-
-- PostgreSQL + pgvector
-- reproducible migrations
-- deterministic synthetic seed
-- RLS
-- PostgREST
-- authentication-role assumptions
-- FastAPI persistence
-- browser E2E execution
-
-The milestone intentionally documented remaining production gaps instead of claiming production readiness prematurely.
-
----
-
-### Milestone 4 — Hybrid semantic property matching
-
-**PR #6**
-
-Introduced:
-
-```text
-Structured Requirements
-        ↓
-Hard Constraints
-        ↓
-Eligible Properties
-        ↓
-Canonical Representations
-        ↓
-Embeddings
-        ↓
-pgvector
-        ↓
-Semantic Ranking
-        ↓
-Top-N Matches
-```
-
-The most important design decision was keeping deterministic eligibility outside of semantic similarity.
-
----
-
-# Technology Stack
-
-| Area | Technology |
+| Layer | Tools |
 |---|---|
-| Frontend | React, TypeScript, Vite |
-| API | Python, FastAPI |
-| Validation | Pydantic |
-| ORM | SQLAlchemy |
-| Database | PostgreSQL / Supabase |
-| Vector Search | pgvector |
-| AI | Structured-output provider abstraction |
-| Embeddings | Provider-neutral embedding contract |
-| Testing | Pytest, Vitest, Testing Library |
-| E2E | Playwright |
-| Quality | Ruff, mypy, ESLint, TypeScript |
-| Infrastructure | Docker / Local Supabase |
-| CI | GitHub Actions |
+| Web | React 19, strict TypeScript, Vite, React Router, TanStack Query, React Hook Form, Zod |
+| API | Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2, psycopg 3, HTTPX |
+| AI | Versioned prompt, strict JSON Schema, OpenAI-compatible Responses API adapter |
+| Data | Supabase PostgreSQL with RLS; SQLite local/test fallback |
+| Testing | Pytest, Ruff, mypy, Vitest, Testing Library, Playwright |
 
----
-
-# Repository Structure
+## Repository map
 
 ```text
-arriendate-intelligence/
-│
-├── apps/
-│   ├── api/
-│   │   ├── app/
-│   │   │   ├── ai/
-│   │   │   ├── embeddings/
-│   │   │   ├── evaluation/
-│   │   │   └── matching/
-│   │   └── tests/
-│   │
-│   └── web/
-│
-├── docs/
-│
-├── evals/
-│   ├── datasets/
-│   └── scripts/
-│
-├── supabase/
-│   ├── migrations/
-│   └── seed/
-│
-└── .github/
-    └── workflows/
+apps/web/                 CRM-like React UI
+apps/api/app/ai/          schemas, prompts, provider contracts/adapters
+apps/api/app/embeddings/  provider-neutral embedding contracts/adapters
+apps/api/app/matching/    deterministic constraints and canonical texts
+apps/api/app/evaluation/  extraction and matching evaluators
+apps/api/tests/           unit, provider-contract, evaluation and integration tests
+supabase/migrations/      authoritative PostgreSQL schema
+supabase/seed/            18 synthetic Chilean properties
+evals/datasets/           versioned synthetic Spanish lead cases
+evals/results/            ignored generated reports
+docs/                     architecture, guardrails, evaluation and plan
 ```
 
----
+## Local setup
 
-# API Surface
+Prerequisites:
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/api/health` | Database readiness |
-| `POST` | `/api/leads` | Create lead |
-| `GET` | `/api/leads/{id}` | Lead intelligence |
-| `POST` | `/api/leads/{id}/extract` | Structured AI extraction |
-| `POST` | `/api/leads/{id}/matches` | Generate property matches |
-| `GET` | `/api/leads/{id}/matches` | Latest matching result |
-| `GET` | `/api/properties` | Property inventory |
-| `GET` | `/api/properties/{id}` | Property details |
-
----
-
-# Demo
-
-The repository uses **synthetic property and lead data** for demonstration and evaluation.
-
-A typical demo flow is:
-
-```text
-1. Create an unstructured lead
-2. Persist original message
-3. Trigger structured extraction
-4. Inspect validated requirements
-5. Generate matches
-6. Apply deterministic eligibility
-7. Rank eligible properties semantically
-8. Inspect Top-N recommendations
-9. Review AI execution telemetry
-```
-
-### Example
-
-```text
-Lead:
-
-"Busco un departamento para arrendar en Providencia,
-máximo 900 mil pesos, dos dormitorios, estacionamiento
-y ojalá que acepten mascotas."
-```
-
-Becomes conceptually:
-
-```json
-{
-  "operation": "rent",
-  "locations": ["Providencia"],
-  "max_budget": 900000,
-  "currency": "CLP",
-  "bedrooms": 2,
-  "parking": 1,
-  "pets": true
-}
-```
-
-Then:
-
-```text
-Hard eligibility
-      ↓
-Eligible inventory
-      ↓
-Semantic preference ranking
-      ↓
-Top-N grounded matches
-```
-
-> A short product walkthrough / GIF will be added here.
-
----
-
-# Running Locally
-
-## Requirements
-
+- Node.js 22+
 - Python 3.12+
-- Node.js
-- Docker
-- Supabase CLI for the full local stack
+- Optional for the production-like database: Docker and the project-scoped Supabase CLI
 
-### Install
+From the repository root in PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
-
+npm.cmd install
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".\apps\api[dev]"
-
-npm.cmd install
 ```
 
-### Run API
+Start the API and web app in separate terminals:
 
 ```powershell
-.\.venv\Scripts\python.exe -m app.server
-```
-
-### Run frontend
-
-```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir apps/api --reload --host 127.0.0.1 --port 8000
 npm.cmd run dev:web
 ```
 
-Frontend:
+Open `http://127.0.0.1:5173`. API documentation is at `http://127.0.0.1:8000/docs`.
 
-```text
-http://127.0.0.1:5173
+Without an `.env`, local lead/property operations use `.local/arriendate.db`. AI extraction stays disabled and returns a visible, observable error until a server-side provider is configured.
+
+### AI configuration
+
+All AI settings are server-only and use the `ARRIENDATE_` prefix. Never put an AI key in a `VITE_*` variable.
+
+```dotenv
+ARRIENDATE_AI_PROVIDER=openai_compatible
+ARRIENDATE_AI_BASE_URL=https://api.openai.com/v1
+ARRIENDATE_AI_API_KEY=replace-locally
+ARRIENDATE_AI_CHAT_MODEL=gpt-5.6-luna
+ARRIENDATE_AI_REASONING_EFFORT=low
+ARRIENDATE_AI_TIMEOUT_SECONDS=45
+ARRIENDATE_AI_MAX_RETRIES=2
 ```
 
-API documentation:
+`gpt-5.6-luna` is the configurable default for this routine, latency/cost-sensitive extraction task; the current flagship remains available through `ARRIENDATE_AI_CHAT_MODEL`. The adapter uses strict Structured Outputs through `text.format`, disables response storage with `store: false`, and records usage only when the provider returns it. See the official [model-selection guidance](https://developers.openai.com/api/docs/guides/latest-model) and [Responses API reference](https://platform.openai.com/docs/api-reference/responses/create).
 
-```text
-http://127.0.0.1:8000/docs
+Optional `ARRIENDATE_AI_INPUT_COST_PER_MILLION` and `ARRIENDATE_AI_OUTPUT_COST_PER_MILLION` values enable cost estimates. They are configuration, not hard-coded price claims.
+
+### Embedding configuration
+
+Embeddings have a separate server-only provider contract. Production can use an OpenAI-compatible
+`/embeddings` endpoint; tests and the E2E harness use a stable feature-hash provider and never use
+the network.
+
+```dotenv
+ARRIENDATE_EMBEDDING_PROVIDER=openai_compatible
+ARRIENDATE_EMBEDDING_BASE_URL=https://api.openai.com/v1
+ARRIENDATE_EMBEDDING_API_KEY=replace-locally
+ARRIENDATE_EMBEDDING_MODEL=text-embedding-3-small
+ARRIENDATE_EMBEDDING_DIMENSION=1536
+ARRIENDATE_EMBEDDING_TIMEOUT_SECONDS=30
 ```
 
----
+With the default `disabled` provider, matching still returns zero candidates or hard-only results
+when no semantic preferences exist. It returns a sanitized `503` only when an embedding is required.
+The configured dimension is fixed at 1536 to match the authoritative `vector(1536)` schema. Cached
+vectors are reused only when canonical text, provider, model, and non-sensitive vector-space identity
+all agree. A budget is matched only when its operation and currency are explicit; no conversion or
+price-column inference is performed.
 
-# PostgreSQL Validation
+### Local Supabase and PostgreSQL validation
 
-Start the local Supabase stack:
+When Docker is available:
 
 ```powershell
 npm.cmd exec supabase -- start
 npm.cmd exec supabase -- db reset --local
+$env:ARRIENDATE_TEST_POSTGRES_URL='postgresql+psycopg://postgres:postgres@127.0.0.1:54322/postgres'
+.\.venv\Scripts\python.exe -m pytest apps/api/tests/postgres -q -m postgres
 ```
 
-Then run PostgreSQL integration tests against an isolated test database.
+The integration suite requires a PostgreSQL URL with permission to create a disposable database.
+It fails instead of falling back when the URL is absent or points to SQLite, applies every migration
+from zero, loads the synthetic seed, validates catalogs/RLS/grants, runs the FastAPI persistence
+path, and drops only its generated database. To run the API itself against the local stack, set
+`ARRIENDATE_DATABASE_URL` to the PostgreSQL URL printed by Supabase.
 
-The PostgreSQL suite validates:
+See [database validation](docs/database-validation.md) for reset commands, environment separation,
+security expectations, and limitations.
 
-- migrations from zero
-- constraints
-- role assumptions
-- RLS
-- grants
-- pgvector
-- persistence behavior
-- synthetic seed integrity
+## API in this milestone
 
----
+| Method | Path | Behavior |
+|---|---|---|
+| `GET` | `/api/health` | database readiness without secrets |
+| `POST` | `/api/leads` | persist untouched lead text; requires an `Idempotency-Key` UUID |
+| `GET` | `/api/leads/{id}` | lead, latest requirements, and last 10 extraction runs |
+| `POST` | `/api/leads/{id}/extract` | explicit structured extraction and run telemetry |
+| `POST` | `/api/leads/{id}/matches?top_k=3` | persist hard-gated semantic matching; `top_k` is 1-10 |
+| `GET` | `/api/leads/{id}/matches` | latest successful match run, or `not_run` |
+| `GET` | `/api/properties` | synthetic inventory with basic filters |
+| `GET` | `/api/properties/{id}` | synthetic property facts |
 
-# Quality Gates
+## Evaluation and quality checks
 
-The project uses multiple validation layers before changes are merged.
+The default evaluation is deterministic and requires no key. It evaluates 15 labeled Spanish lead cases and rejects 7 intentionally invalid outputs:
 
-```text
-                    ┌──────────────┐
-                    │ Pull Request │
-                    └──────┬───────┘
-                           │
-          ┌────────────────┼────────────────┐
-          ▼                ▼                ▼
-      Backend          Database         Frontend
-      tests            integration       tests
-          │                │                │
-          ▼                ▼                ▼
-       Ruff            PostgreSQL       ESLint
-       mypy             pgvector        TypeScript
-          │                │                │
-          └────────────────┼────────────────┘
-                           ▼
-                      E2E / Build
-                           │
-                           ▼
-                         Merge
+```powershell
+.\.venv\Scripts\python.exe evals\scripts\evaluate_lead_extraction.py
+.\.venv\Scripts\python.exe evals\scripts\evaluate_property_matching.py
 ```
 
-The committed test suite does not require production AI credentials.
+An opt-in live run uses the same prompt and JSON Schema as production:
 
----
-
-# Security Principles
-
-The project intentionally avoids several common AI application anti-patterns.
-
-### No browser AI secrets
-
-Provider credentials remain on the server.
-
-### No unrestricted model-to-database path
-
-LLM output must pass domain validation before persistence.
-
-### No unrestricted SQL generation
-
-AI output does not become arbitrary SQL.
-
-### No semantic override of hard requirements
-
-Vector ranking operates only after deterministic eligibility.
-
-### No raw provider telemetry leakage
-
-Errors and execution metadata are sanitized.
-
-### No real customer dataset in the repository
-
-Committed demos and evaluations use synthetic data.
-
----
-
-# Known Limitations
-
-This project is an engineering prototype / internal system, not a claim of production SaaS readiness.
-
-Current limitations include:
-
-- authentication and tenant isolation are not yet implemented;
-- hosted Supabase production configuration has not been validated;
-- production abuse controls and rate limiting remain pending;
-- production observability requires expansion;
-- semantic quality still requires evaluation against larger realistic inventories;
-- exact pgvector search is sufficient for the current synthetic inventory but would need reconsideration at larger scale;
-- live model evaluations require separately supplied provider credentials;
-- AI extraction remains human-triggered;
-- autonomous outbound communication is intentionally not implemented.
-
-These constraints are documented deliberately rather than hidden behind a "production-ready" claim.
-
----
-
-# Design Philosophy
-
-The project follows four core rules:
-
-```text
-AI interprets.
-Code validates.
-PostgreSQL enforces.
-Humans decide.
+```powershell
+.\.venv\Scripts\python.exe evals\scripts\evaluate_lead_extraction.py --mode live
 ```
 
-That separation makes the system easier to:
+Generated reports are written to the ignored `evals/results/lead_extraction.latest.json`. Live runs require provider environment variables and may incur cost.
 
-- test
-- audit
-- debug
-- evolve
-- reason about
+Pull requests and pushes to `main` run backend, frontend, and production-like database jobs through
+`.github/workflows/ci.yml`. The fast backend job uses SQLite and mocks. The database job uses
+PostgreSQL 17 with pgvector 0.8.2, creates Supabase-compatible test roles, applies migrations from
+zero, validates RLS/grants and seed behavior, and runs the isolated PostgreSQL integration suite.
+No job receives an AI API key or calls a live provider.
 
-while still benefiting from semantic AI capabilities.
+Run all checks:
 
----
+```powershell
+# Backend
+.\.venv\Scripts\python.exe -m ruff check apps/api evals/scripts
+.\.venv\Scripts\python.exe -m mypy apps/api/app
+.\.venv\Scripts\python.exe -m pytest apps/api/tests --ignore=apps/api/tests/postgres -q
+.\.venv\Scripts\python.exe evals\scripts\evaluate_lead_extraction.py --mode fixture
+.\.venv\Scripts\python.exe evals\scripts\evaluate_property_matching.py
 
-# What I Would Build Next
+# PostgreSQL/Supabase database layer; requires ARRIENDATE_TEST_POSTGRES_URL
+.\.venv\Scripts\python.exe -m pytest apps/api/tests/postgres -q -m postgres
 
-If taking the system toward production, the next priorities would be:
+# Frontend
+npm.cmd run typecheck:web
+npm.cmd run lint:web
+npm.cmd run test:web
+npm.cmd run build:web
 
-1. authentication and organization isolation;
-2. dedicated least-privilege PostgreSQL application roles;
-3. production observability and alerting;
-4. larger retrieval evaluation datasets;
-5. semantic matching quality benchmarks;
-6. controlled tool-based AI workflows;
-7. deployment and operational hardening.
+# Browser flow; requires Microsoft Edge and the deterministic test API/web processes
+# API: .\.venv\Scripts\python.exe -m uvicorn tests.e2e_app:app --app-dir apps/api --host 127.0.0.1 --port 8000
+# Web: npm.cmd run dev:web -- --host 127.0.0.1 --port 5173
+npm.cmd run test:e2e
+```
 
-The goal would remain the same:
+## Enforced guardrails
 
-> expand AI capability without weakening deterministic system guarantees.
+- All machine-consumed output is schema-constrained at the provider and strictly revalidated by the server.
+- Unknowns remain `null`/empty with explicit missing-information markers; values are never guessed to repair output.
+- Transport retries are bounded and limited to transient failures.
+- Provider response bodies, original lead text, prompts, and credentials are absent from persisted AI telemetry and sanitized errors.
+- Extraction is a human-triggered action; no external communication is sent.
+- Browser rendering uses React text nodes, not injected HTML.
+- Direct browser database roles have no table privileges in the supplied migrations.
 
----
+## Known limitations
 
-## Author
-
-Built as an Applied AI / Full-Stack engineering project focused on reliable AI workflows, structured outputs, hybrid retrieval, PostgreSQL correctness, evaluation and human-in-the-loop system design.
-
-**Renato Delpino**
-
-GitHub: `Trees022`
+- The deterministic embedding provider is a regression fixture, not a production semantic-quality claim.
+- Exact pgvector search is intentional for 18 properties; no HNSW index exists yet. Reassess with realistic inventory and query plans.
+- Similarity is a normalized cosine ranking signal, not a probability or compatibility percentage.
+- No live provider evaluation is reproducible without a separately supplied API key; the committed suite uses deterministic fixtures and an HTTP mock of the Responses API contract.
+- The database suite has been executed against real PostgreSQL 17 with pgvector and CI
+  reproduces that database layer. A hosted Supabase project and the complete local Supabase
+  Auth/PostgREST stack remain unvalidated; CI validates PostgreSQL schema and Supabase role/RLS/grant
+  semantics, not those surrounding services.
+- FastAPI currently uses a privileged direct PostgreSQL connection. A dedicated least-privilege
+  login and organization-aware policies are required before public or multi-tenant deployment.
+- Authentication, tenant isolation, abuse controls, and endpoint rate limiting remain deployment
+  prerequisites; this internal milestone does not claim them.
+- Cost remains `null` unless both provider usage and current per-million prices are configured.
+- Authentication is not implemented. The app is intended for local/internal evaluation and is not ready for public deployment.
+- RAG, agents, n8n, outbound messaging, requirement relaxation, and later milestones are intentionally absent.
