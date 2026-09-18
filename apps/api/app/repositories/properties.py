@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Property
-from app.domain.enums import AvailabilityStatus, OperationType
+from app.domain.enums import AvailabilityStatus, CommercialStatus, OperationType
 
 
 class PropertyRepository:
@@ -22,6 +22,7 @@ class PropertyRepository:
         operation_type: OperationType | None,
         city: str | None,
         availability: AvailabilityStatus | None,
+        commercial_status: CommercialStatus | None = None,
     ) -> tuple[list[Property], int]:
         filters = []
         if operation_type:
@@ -30,6 +31,8 @@ class PropertyRepository:
             filters.append(func.lower(Property.city) == city.casefold())
         if availability:
             filters.append(Property.availability_status == availability.value)
+        if commercial_status:
+            filters.append(Property.commercial_status == commercial_status.value)
 
         total = await self.session.scalar(
             select(func.count()).select_from(Property).where(*filters)
@@ -42,3 +45,17 @@ class PropertyRepository:
             .limit(page_size)
         )
         return list(rows), int(total or 0)
+
+    async def create(self, record: dict[str, object]) -> Property:
+        prop = Property(**record)
+        self.session.add(prop)
+        await self.session.commit()
+        await self.session.refresh(prop)
+        return prop
+
+    async def update(self, prop: Property, updates: dict[str, object]) -> Property:
+        for key, value in updates.items():
+            setattr(prop, key, value)
+        await self.session.commit()
+        await self.session.refresh(prop)
+        return prop

@@ -129,8 +129,35 @@ This validation covers local containers only. Supabase hosted deployment, produc
 organization ownership/multitenancy, and a least-privilege backend login remain future production
 work.
 
+## Property Operations Pilot (M2) architecture
+
+### Operations path
+
+```text
+Operator UI / API
+  -> Property creation & editing (commercial_status, dimensions, reference_code)
+  -> Property media storage (local filesystem / Supabase storage abstraction)
+  -> Publication package generation (deterministic fixture-first + AI optional)
+  -> Package approval (locks variants: FB Marketplace, FB Groups, Portals)
+  -> Distribution campaign (targets: FB group, Marketplace, Portals)
+  -> Publication jobs (assisted clipboard flow / manual checklist)
+  -> State machine: pending -> ready -> running -> published -> cooldown
+  -> Reconciler tick: deterministic cooldown expiration -> ready for repost
+  -> Inmutable publication audit trail (publications table)
+```
+
+The matching and extraction engine remain intact and functional; properties continue to power semantic matching while gaining operational lifecycle management.
+
+## Property Command Center (M3)
+
+The property is now the operational aggregate root. `GET /api/properties/{id}/command-center`
+combines distribution, publications, engagement, conversations, campaign history and deterministic
+next actions in the service layer. Meta Page publishing, Page Messenger and Instagram Professional
+use separate provider contracts/adapters. Facebook Groups and Marketplace are assisted surfaces and
+are rejected if configured as generic API publishing targets. See
+[property-command-center.md](property-command-center.md) for the authoritative capability,
+attribution, demo, security and future-runner boundaries.
+
 ## Explicit boundary
 
-This milestone ends after structured extraction, hard-constraint property matching, semantic ranking,
-persistence, failure handling, evaluation, and observability. RAG, agents, workflow integrations, and
-optimization research remain outside the code path.
+This milestone delivers structured extraction, semantic matching, Property Operations and a fixture-backed Property Command Center. It does not claim live Meta OAuth, webhooks, arbitrary Group/Marketplace APIs, automated browser posting, production multi-tenant auth or public SaaS readiness.

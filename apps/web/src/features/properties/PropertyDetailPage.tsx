@@ -38,6 +38,9 @@ export function PropertyDetailPage() {
         <div className="detail-price">
           <span>Valor publicado</span>
           <strong>{formatPropertyPrice(property)}</strong>
+          <Link className="button button--primary detail-price__action" to={`/properties/${property.id}/command-center`}>
+            Abrir Command Center
+          </Link>
           <small>Registro sintético · no es una oferta real</small>
         </div>
       </header>

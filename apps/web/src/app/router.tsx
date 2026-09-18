@@ -4,6 +4,7 @@ import { AppShell } from "./AppShell";
 import { NotFoundPage } from "./NotFoundPage";
 import { LeadDetailPage } from "../features/leads/LeadDetailPage";
 import { NewLeadPage } from "../features/leads/NewLeadPage";
+import { PropertyCommandCenterPage } from "../features/properties/PropertyCommandCenterPage";
 import { PropertyDetailPage } from "../features/properties/PropertyDetailPage";
 import { PropertyListPage } from "../features/properties/PropertyListPage";
 
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
       { path: "leads/:id", element: <LeadDetailPage /> },
       { path: "properties", element: <PropertyListPage /> },
       { path: "properties/:id", element: <PropertyDetailPage /> },
+      { path: "properties/:id/command-center", element: <PropertyCommandCenterPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

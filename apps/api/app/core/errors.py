@@ -18,6 +18,11 @@ class ConflictError(AppError):
         super().__init__(status_code=409, code="conflict", detail=detail)
 
 
+class ValidationError(AppError):
+    def __init__(self, detail: str) -> None:
+        super().__init__(status_code=422, code="validation_error", detail=detail)
+
+
 class AIProviderUnavailableError(AppError):
     def __init__(self, detail: str, *, timeout: bool = False) -> None:
         super().__init__(

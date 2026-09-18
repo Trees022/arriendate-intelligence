@@ -15,6 +15,19 @@ APPLICATION_TABLES = (
     "ai_runs",
     "matching_runs",
     "property_matches",
+    "property_media",
+    "publication_packages",
+    "publication_package_variants",
+    "publication_targets",
+    "campaigns",
+    "campaign_targets",
+    "publication_jobs",
+    "publications",
+    "channel_accounts",
+    "engagement_snapshots",
+    "publication_comments",
+    "conversations",
+    "messages",
 )
 DIRECT_DATA_API_ROLES = ("anon", "authenticated")
 
@@ -39,14 +52,9 @@ def test_rls_is_enabled_without_permissive_policies(
             (list(APPLICATION_TABLES),),
         ).fetchall()
 
-    assert rls_rows == [
-        ("ai_runs", True, False),
-        ("lead_requirements", True, False),
-        ("leads", True, False),
-        ("matching_runs", True, False),
-        ("properties", True, False),
-        ("property_matches", True, False),
-    ]
+    assert len(rls_rows) == len(APPLICATION_TABLES)
+    assert {row[0] for row in rls_rows} == set(APPLICATION_TABLES)
+    assert all(row[1:] == (True, False) for row in rls_rows)
     assert policies == []
 
 
@@ -137,11 +145,10 @@ def test_sensitive_tables_are_not_exposed_through_role_grants(
             select grantee, table_name, privilege_type
             from information_schema.role_table_grants
             where table_schema = 'public'
-              and table_name in (
-                'lead_requirements', 'ai_runs', 'matching_runs', 'property_matches'
-              )
+              and table_name = any(%s)
               and grantee in ('anon', 'authenticated')
-            """
+            """,
+            (list(APPLICATION_TABLES),),
         ).fetchall()
 
     assert grants == []
