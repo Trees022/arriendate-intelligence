@@ -52,7 +52,7 @@ export function LeadDetailPage() {
   const lead = query.data;
   return (
     <div className="page-stack detail-page">
-      <Link className="back-link" to="/leads/new">← Ingresar otro lead</Link>
+      <Link className="back-link" to="/leads">← Volver a leads</Link>
       <header className="lead-hero">
         <div>
           <p className="eyebrow">Lead · {lead.id.slice(0, 8)}</p>
@@ -66,14 +66,14 @@ export function LeadDetailPage() {
         <article className="panel original-request-card">
           <div className="panel__heading">
             <div>
-              <p className="eyebrow">Fuente original</p>
-              <h2>Solicitud sin reescritura</h2>
+              <p className="eyebrow">Consulta recibida</p>
+              <h2>Qué está buscando</h2>
             </div>
-            <span className="verified-label">Persistida</span>
+            <span className="verified-label">Registrada</span>
           </div>
           <blockquote>{lead.original_request}</blockquote>
           <div className="record-meta">
-            <span>Registro inmutable para procesamiento</span>
+            <span>Consulta original</span>
             <span>{formatDate(lead.updated_at)}</span>
           </div>
         </article>

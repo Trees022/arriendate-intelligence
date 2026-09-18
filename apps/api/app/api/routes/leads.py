@@ -11,6 +11,7 @@ from app.api.schemas import (
     LeadCreate,
     LeadDetailResponse,
     LeadExtractionResponse,
+    LeadListResponse,
     LeadMatchesResponse,
     LeadRequirementsResponse,
     LeadResponse,
@@ -24,6 +25,21 @@ from app.services.leads import LeadService
 from app.services.matching import MatchingView, PropertyMatchingService
 
 router = APIRouter(prefix="/leads", tags=["leads"])
+
+
+@router.get("", response_model=LeadListResponse)
+async def list_leads(
+    session: SessionDep,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+) -> LeadListResponse:
+    leads, total = await LeadService(session).list(page=page, page_size=page_size)
+    return LeadListResponse(
+        items=[LeadResponse.model_validate(lead) for lead in leads],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post("", response_model=LeadResponse, status_code=status.HTTP_201_CREATED)

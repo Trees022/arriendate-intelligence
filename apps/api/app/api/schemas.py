@@ -81,6 +81,13 @@ class LeadResponse(BaseModel):
     updated_at: datetime
 
 
+class LeadListResponse(BaseModel):
+    items: list[LeadResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 class LeadRequirementsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

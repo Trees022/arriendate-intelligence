@@ -119,9 +119,9 @@ describe("PropertyCommandCenterPage", () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Departamento demo" })).toBeInTheDocument();
-    expect(screen.getByText("Modo demo determinístico")).toBeInTheDocument();
+    expect(screen.getByText("Demo local")).toBeInTheDocument();
     expect(screen.getByText("Propiedades Castro")).toBeInTheDocument();
-    expect(screen.getByText("Facebook Group · Flujo asistido")).toBeInTheDocument();
+    expect(screen.getByText("Grupo de Facebook · Flujo asistido")).toBeInTheDocument();
     expect(screen.getAllByText("No disponible")).toHaveLength(2);
     expect(screen.getByText("Publicar en Propiedades Castro")).toBeInTheDocument();
   });

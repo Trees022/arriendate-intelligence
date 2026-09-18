@@ -25,6 +25,13 @@ export interface Lead {
   updated_at: string;
 }
 
+export interface LeadList {
+  items: Lead[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export type RequestedOperation = "rent" | "buy" | "unknown";
 export type RequestedPropertyType =
   | "apartment"
@@ -146,7 +153,37 @@ export interface PropertyFilters {
   operation_type?: OperationType;
   city?: string;
   availability?: AvailabilityStatus;
+  commercial_status?: CommercialStatus;
 }
+
+export interface PropertyCreateInput {
+  title: string;
+  description: string;
+  operation_type: OperationType;
+  property_type: string;
+  city: string;
+  sector: string | null;
+  monthly_price: number | null;
+  sale_price: number | null;
+  currency: string;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  parking_spaces: number | null;
+  pet_policy: PetPolicy;
+  furnished: boolean | null;
+  square_meters: number | null;
+  reference_code: string | null;
+  source_notes: string | null;
+  address_text: string | null;
+  built_area_m2: number | null;
+  land_area_m2: number | null;
+  commercial_status: CommercialStatus;
+  amenities: string[];
+}
+
+export type PropertyUpdateInput = Partial<PropertyCreateInput> & {
+  availability_status?: AvailabilityStatus;
+};
 
 export interface ConstraintCheck {
   constraint: string;
@@ -284,12 +321,41 @@ export interface PublicationVariant {
   warnings: string[];
 }
 
+export interface PublicationPackage {
+  id: string;
+  property_id: string;
+  property_fingerprint: string;
+  status: "draft" | "approved" | "archived";
+  variants: PublicationVariant[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PropertyMedia {
   id: string;
+  property_id: string;
+  storage_key: string;
   original_filename: string;
+  media_type: string;
+  mime_type: string;
+  size_bytes: number;
   position: number;
   is_cover: boolean;
   url: string;
+  created_at: string;
+}
+
+export interface PublicationTargetCreate {
+  name: string;
+  channel_type: ChannelType;
+  execution_mode: ExecutionMode;
+  destination_url: string | null;
+  channel_account_id: string | null;
+  geographic_relevance: string | null;
+  property_tags: string[];
+  active: boolean;
+  minimum_repost_interval_hours: number;
+  notes: string | null;
 }
 
 export interface DistributionItem {
@@ -379,6 +445,13 @@ export interface CommandCenterCampaign {
   jobs: PublicationJob[];
 }
 
+export interface CampaignDetail extends CommandCenterCampaign {
+  property_id: string;
+  package_id: string;
+  targets: PublicationTarget[];
+  updated_at: string;
+}
+
 export interface PropertyCommandCenter {
   property: Property;
   demo_mode: boolean;
@@ -390,4 +463,10 @@ export interface PropertyCommandCenter {
   related_conversations: Conversation[];
   next_actions: PropertyAction[];
   campaigns: CommandCenterCampaign[];
+}
+
+export interface OperationsWorkspace {
+  properties: Property[];
+  centers: PropertyCommandCenter[];
+  demo_mode: boolean;
 }

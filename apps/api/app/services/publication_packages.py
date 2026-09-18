@@ -25,7 +25,6 @@ def compute_property_fingerprint(
         f"{prop.bedrooms}|{prop.bathrooms}|{prop.parking_spaces}|{prop.pet_policy}|"
         f"{prop.furnished}|{prop.square_meters}|{prop.reference_code}|"
         f"{prop.address_text}|{prop.built_area_m2}|{prop.land_area_m2}|"
-        f"{prop.commercial_status}|"
         f"{','.join(sorted(prop.amenities))}|{';'.join(media_tokens)}"
     )
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()

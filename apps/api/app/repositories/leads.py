@@ -1,7 +1,7 @@
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,16 @@ class LeadRepository:
 
     async def get(self, lead_id: UUID) -> Lead | None:
         return await self.session.get(Lead, lead_id)
+
+    async def list(self, *, page: int, page_size: int) -> tuple[list[Lead], int]:
+        rows = await self.session.scalars(
+            select(Lead)
+            .order_by(Lead.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        total = await self.session.scalar(select(func.count()).select_from(Lead))
+        return list(rows), int(total or 0)
 
     async def get_by_idempotency_key(self, key: UUID) -> Lead | None:
         return cast(

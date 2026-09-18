@@ -41,6 +41,11 @@ async def test_lead_is_persisted_before_any_processing(client: AsyncClient) -> N
     assert duplicate.status_code == 201
     assert duplicate.json()["id"] == lead["id"]
 
+    listed = await client.get("/api/leads?page_size=10")
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 1
+    assert listed.json()["items"][0]["id"] == lead["id"]
+
 
 async def test_idempotency_key_cannot_be_reused_for_different_content(client: AsyncClient) -> None:
     idempotency_key = str(uuid4())

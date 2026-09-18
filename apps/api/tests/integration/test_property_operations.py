@@ -27,7 +27,7 @@ async def test_property_operations_vertical_slice_reaches_assisted_cooldown(
             "reference_code": "PILOT-001",
             "built_area_m2": 94,
             "land_area_m2": 180,
-            "commercial_status": "active",
+            "commercial_status": "draft",
             "amenities": ["patio", "bodega"],
         },
     )
@@ -59,6 +59,11 @@ async def test_property_operations_vertical_slice_reaches_assisted_cooldown(
     approved = await client.patch(f"/api/packages/{package['id']}/approve")
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
+
+    activated = await client.patch(
+        f"/api/properties/{property_id}", json={"commercial_status": "active"}
+    )
+    assert activated.status_code == 200
 
     target_response = await client.post(
         "/api/publication-targets",
@@ -104,6 +109,9 @@ async def test_property_operations_vertical_slice_reaches_assisted_cooldown(
         if item["target"]["id"] == target["id"]
     )
     assert distribution["status"] == "cooldown"
+    assert "stale_package" not in {
+        action["type"] for action in command_center.json()["next_actions"]
+    }
     assert distribution["next_eligible_at"] is not None
     assert distribution["prepared_media"][0]["is_cover"] is True
 

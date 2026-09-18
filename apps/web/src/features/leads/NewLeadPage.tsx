@@ -62,9 +62,9 @@ export function NewLeadPage() {
   return (
     <div className="page-stack lead-intake-page">
       <PageHeader
-        eyebrow="Ingreso rápido"
-        title="Captura la necesidad tal como fue expresada."
-        description="Primero guardamos la fuente original. La extracción y el futuro matching se ejecutan como pasos separados y auditables."
+        eyebrow="CRM · Registro manual"
+        title="Registra una persona interesada."
+        description="Conserva su consulta para hacer seguimiento y encontrar propiedades compatibles."
       />
 
       <div className="intake-layout">
@@ -73,7 +73,7 @@ export function NewLeadPage() {
             <span>01</span>
             <div>
               <h2>Datos de contacto</h2>
-              <p>Opcionales para esta demostración. Usa únicamente información sintética.</p>
+              <p>Agrega los datos disponibles para poder continuar el seguimiento.</p>
             </div>
           </div>
           <div className="form-grid">
@@ -116,8 +116,8 @@ export function NewLeadPage() {
           <div className="form-section-heading">
             <span>02</span>
             <div>
-              <h2>Solicitud original</h2>
-              <p>Pega el mensaje completo, incluyendo prioridades e incertidumbres.</p>
+              <h2>Qué está buscando</h2>
+              <p>Pega o escribe la consulta completa, incluyendo prioridades y dudas.</p>
             </div>
           </div>
           <label className="field">
@@ -130,7 +130,7 @@ export function NewLeadPage() {
             />
             <span className="field-meta">
               <small className={errors.original_request ? "field-error" : ""}>
-                {errors.original_request?.message ?? "Este texto se conservará sin reescritura."}
+                {errors.original_request?.message ?? "Guardaremos la consulta tal como fue recibida."}
               </small>
               <small>{requestLength.toLocaleString("es-CL")} / 10.000</small>
             </span>
@@ -144,7 +144,7 @@ export function NewLeadPage() {
           ) : null}
 
           <div className="form-actions">
-            <p><span className="system-dot" /> Se guardará antes de ejecutar la extracción.</p>
+            <p><span className="system-dot" /> Podrás revisar requisitos y propiedades compatibles después.</p>
             <button className="button button--primary" type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? "Guardando…" : "Guardar lead"}
             </button>
@@ -154,17 +154,16 @@ export function NewLeadPage() {
         <aside className="intake-aside">
           <div className="aside-note">
             <span className="aside-note__number">v0.1</span>
-            <h2>Qué ocurre ahora</h2>
+            <h2>Después de guardar</h2>
             <ul>
-              <li><span>✓</span> Validación en navegador y servidor</li>
-              <li><span>✓</span> Persistencia del mensaje original</li>
-              <li><span>✓</span> Protección contra doble envío</li>
-              <li><span>✓</span> Extracción estructurada y observable</li>
-              <li className="is-muted"><span>○</span> Top 3 matches · próximo hito</li>
+              <li><span>✓</span> La consulta queda disponible en el CRM</li>
+              <li><span>✓</span> Puedes ordenar sus requisitos con IA</li>
+              <li><span>✓</span> Puedes buscar propiedades compatibles</li>
+              <li><span>✓</span> El mensaje original siempre queda visible</li>
             </ul>
           </div>
           <p className="privacy-note">
-            <strong>Entorno de demostración.</strong> No ingreses datos personales ni información real de clientes.
+            <strong>Demo local.</strong> Usa datos ficticios mientras este entorno no tenga acceso protegido.
           </p>
         </aside>
       </div>

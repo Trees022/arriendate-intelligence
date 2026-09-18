@@ -1,91 +1,75 @@
 import { expect, test } from "@playwright/test";
 
-test("lead extraction, hard constraints, and grounded semantic matches", async ({ page }) => {
-  const originalRequest =
-    "Somos una pareja joven con un perro. Buscamos departamento en Viña del Mar, máximo $700.000 mensuales, idealmente 2 dormitorios y estacionamiento.";
+test("property-first broker workflow from dashboard to command center", async ({ page }) => {
+  test.setTimeout(60_000);
 
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: /Buenas decisiones empiezan/ })).toBeVisible();
+  const mainNav = page.getByRole("navigation", { name: "Navegación principal" });
+  await expect(page.getByRole("heading", { name: /Tu cartera, publicaciones/ })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("link", { name: "+ Nueva propiedad" })).toBeVisible();
+  await expect(page.getByText("Propiedades activas")).toBeVisible();
+  await page.screenshot({ path: "../../.local/product-dashboard.png", fullPage: true });
 
-  await page.getByRole("link", { name: "Propiedades" }).click();
-  await expect(page.locator(".filter-bar__count strong")).toHaveText("18");
-  await page.screenshot({ path: "../../.local/verified-inventory.png", fullPage: true });
-  await page.getByRole("link", { name: /Departamento Los Castaños/ }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Departamento Los Castaños" })).toBeVisible();
-  await expect(page.getByText("Modo demo determinístico")).toBeVisible();
+  await mainNav.getByRole("link", { name: "Propiedades", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Propiedades", exact: true })).toBeVisible();
+  await expect(page.getByText("Abrir centro de operación").first()).toBeVisible();
+  await page.screenshot({ path: "../../.local/product-properties.png", fullPage: true });
+
+  await page.getByRole("main").getByRole("link", { name: "+ Nueva propiedad" }).click();
+  await expect(page.getByRole("heading", { name: /Prepara una propiedad/ })).toBeVisible();
+  await page.screenshot({ path: "../../.local/product-new-property-wizard.png", fullPage: true });
+
+  const propertyTitle = `Casa piloto UX ${Date.now()}`;
+  await page.getByPlaceholder("Ej. Casa luminosa en Castro centro").fill(propertyTitle);
+  await page.getByPlaceholder("Describe sólo características verificables de la propiedad.").fill(
+    "Casa luminosa de tres dormitorios con patio y estacionamiento.",
+  );
+  await page.getByPlaceholder("650000").fill("720000");
+  await page.getByRole("textbox", { name: "Ciudad" }).fill("Castro");
+  await page.getByRole("button", { name: "Guardar y continuar" }).click();
+
+  await expect(page.getByRole("heading", { name: "Fotografías" })).toBeVisible();
+  await page.getByLabel(/Seleccionar fotografías/).setInputFiles({
+    name: "fachada-piloto.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAANSURBVBhXY6hd3v8fAAYLArMu9ToqAAAAAElFTkSuQmCC",
+      "base64",
+    ),
+  });
+  await expect(page.getByText("fachada-piloto.png")).toBeVisible();
+  await page.getByRole("button", { name: "Continuar con contenido" }).click();
+  await page.getByRole("button", { name: "Generar contenido" }).click();
+  await expect(page.getByText("Vista previa")).toBeVisible();
+  await page.getByRole("button", { name: "Aprobar contenido y continuar" }).click();
+
+  const groupTarget = page.getByRole("checkbox", { name: /Propiedades Región de Los Lagos/ });
+  await expect(groupTarget).toBeVisible();
+  await groupTarget.check();
+  await page.getByRole("button", { name: "Revisar lanzamiento" }).click();
+  await expect(page.getByRole("heading", { name: "Todo listo para lanzar" })).toBeVisible();
+  await page.getByRole("button", { name: "Activar propiedad y lanzar campaña" }).click();
+
+  await expect(page).toHaveURL(/\/properties\/[0-9a-f-]+\/command-center$/);
+  await expect(page.getByRole("heading", { name: propertyTitle })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Dónde está publicada y qué sigue" })).toBeVisible();
-  const marketplaceRow = page.locator(".distribution-row").filter({ hasText: "Facebook Marketplace" });
-  await marketplaceRow.getByText("Facebook Marketplace", { exact: true }).click();
-  await expect(marketplaceRow.getByText("Kit de publicación preparado")).toBeVisible();
-  await expect(marketplaceRow.getByRole("button", { name: "Copiar titular" })).toBeVisible();
-  await expect(marketplaceRow.getByRole("button", { name: "Marcar completa" })).toBeVisible();
-  await expect(page.getByText("No disponible", { exact: true }).first()).toBeVisible();
-  await page.screenshot({ path: "../../.local/verified-command-center.png", fullPage: true });
-  await page.getByRole("link", { name: "Ver ficha completa" }).click();
-  await expect(page.getByText("Admite mascotas")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Actualizar paquete de publicación" })).toHaveCount(0);
+  await page.screenshot({ path: "../../.local/product-command-center.png", fullPage: true });
 
-  await page.getByRole("link", { name: "Nuevo lead" }).click();
-  await page.getByPlaceholder("Ej. Camila y Tomás").fill("Lead E2E sintético");
-  await page.getByPlaceholder(/Somos una pareja joven/).fill(originalRequest);
-  await page.screenshot({ path: "../../.local/verified-intake.png", fullPage: true });
-  await page.getByRole("button", { name: "Guardar lead" }).click();
+  await mainNav.getByRole("link", { name: "Publicaciones", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Publicaciones", exact: true })).toBeVisible();
+  const publicationRow = page.locator(".publication-queue__item").filter({ hasText: propertyTitle });
+  await expect(publicationRow).toBeVisible();
+  await publicationRow.locator("summary").click();
+  await expect(publicationRow.getByText("Kit de publicación preparado")).toBeVisible();
+  await page.screenshot({ path: "../../.local/product-publications.png", fullPage: true });
 
-  await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Lead E2E sintético" })).toBeVisible();
-  await expect(page.locator("blockquote")).toHaveText(originalRequest);
+  await mainNav.getByRole("link", { name: "Inbox", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
+  await expect(page.getByText(/todavía no existe sincronización en vivo con Meta/)).toBeVisible();
+  await page.screenshot({ path: "../../.local/product-inbox.png", fullPage: true });
 
-  await page.reload();
-  await expect(page.locator("blockquote")).toHaveText(originalRequest);
-  await page.getByRole("button", { name: "Extraer requisitos con IA" }).click();
-  await expect(page.getByRole("heading", { name: "Requisitos estructurados" })).toBeVisible();
-  await expect(page.getByText("CLP 700.000")).toBeVisible();
-  await expect(
-    page.locator(".requirements-grid > div").filter({ hasText: "Dormitorios mínimos" }).getByText("2"),
-  ).toBeVisible();
-  await expect(page.getByText("Calificado")).toBeVisible();
-  await page.getByText("Ejecuciones de IA").click();
-  await expect(page.getByText("Validada", { exact: true })).toBeVisible();
-  await expect(page.getByText("fixture-structured-v1")).toBeVisible();
-  await page.getByRole("button", { name: "Generar recomendaciones" }).click();
-  await expect(page.locator(".matching-card")).toHaveCount(2);
-  await expect(page.locator(".matching-summary")).toContainText("2 elegibles de 18");
-  await expect(page.locator(".matching-card").first()).toContainText("restricciones verificadas");
-  await expect(page.locator(".matching-card__price").first()).toContainText("670.000");
-  const firstMatchTitle = await page.locator(".matching-card h3").first().textContent();
-  await page.locator(".matching-card").first().getByRole("link", { name: /Ver propiedad/ }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(firstMatchTitle ?? "");
-  await page.goBack();
-  await expect(page.locator(".matching-card")).toHaveCount(2);
-  await page.screenshot({ path: "../../.local/verified-lead-detail.png", fullPage: true });
-
-  await page.reload();
-  await expect(page.getByRole("heading", { name: "Requisitos estructurados" })).toBeVisible();
-  await expect(page.locator(".matching-card")).toHaveCount(2);
-  await page.getByText("Ejecuciones de IA").click();
-  await expect(page.getByText("Validada", { exact: true })).toBeVisible();
-
-  await page.getByRole("link", { name: "Nuevo lead" }).click();
-  await page.getByPlaceholder("Ej. Camila y Tomás").fill("Lead semántico E2E");
-  await page.getByPlaceholder(/Somos una pareja joven/).fill(
-    "Busco principalmente preferencias semánticas: algo tranquilo, luminoso y cerca del mar.",
-  );
-  await page.getByRole("button", { name: "Guardar lead" }).click();
-  await page.getByRole("button", { name: "Extraer requisitos con IA" }).click();
-  await page.getByRole("button", { name: "Generar recomendaciones" }).click();
-  await expect(page.locator(".matching-summary")).toContainText("17 elegibles de 18");
-  await expect(page.locator(".matching-card")).toHaveCount(3);
-  await page.screenshot({ path: "../../.local/verified-semantic-matching.png", fullPage: true });
-
-  await page.getByRole("link", { name: "Nuevo lead" }).click();
-  await page.getByPlaceholder("Ej. Camila y Tomás").fill("Lead imposible E2E");
-  await page.getByPlaceholder(/Somos una pareja joven/).fill(
-    "Busco un departamento con presupuesto imposible de $100.000 en Viña del Mar.",
-  );
-  await page.getByRole("button", { name: "Guardar lead" }).click();
-  await page.getByRole("button", { name: "Extraer requisitos con IA" }).click();
-  await page.getByRole("button", { name: "Generar recomendaciones" }).click();
-  await expect(page.getByText(/No hay propiedades que cumplan/)).toBeVisible();
-  await expect(page.getByText(/presupuesto máximo: excluyó/)).toBeVisible();
-  await expect(page.locator(".matching-card")).toHaveCount(0);
-  await page.screenshot({ path: "../../.local/verified-zero-candidates.png", fullPage: true });
+  await mainNav.getByRole("link", { name: "Leads", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Leads", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "+ Registrar lead" })).toBeVisible();
 });

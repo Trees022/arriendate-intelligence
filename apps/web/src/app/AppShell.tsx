@@ -2,24 +2,26 @@ import { NavLink, Outlet } from "react-router-dom";
 
 const navigation = [
   { to: "/dashboard", label: "Dashboard", glyph: "⌂" },
-  { to: "/leads/new", label: "Nuevo lead", glyph: "+" },
   { to: "/properties", label: "Propiedades", glyph: "◇" },
+  { to: "/publications", label: "Publicaciones", glyph: "↗" },
+  { to: "/inbox", label: "Inbox", glyph: "◎" },
+  { to: "/leads", label: "Leads", glyph: "◌" },
 ];
 
 export function AppShell() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <NavLink className="brand" to="/dashboard" aria-label="Arriendate Intelligence, inicio">
+        <NavLink className="brand" to="/dashboard" aria-label="Arriendate, inicio">
           <span className="brand__mark" aria-hidden="true">AI</span>
           <span>
             <strong>Arriendate</strong>
-            <small>Intelligence</small>
+            <small>Operaciones</small>
           </span>
         </NavLink>
 
         <nav className="navigation" aria-label="Navegación principal">
-          <p className="navigation__label">Workspace</p>
+          <p className="navigation__label">Operación</p>
           {navigation.map((item) => (
             <NavLink
               key={item.to}
@@ -30,13 +32,14 @@ export function AppShell() {
               {item.label}
             </NavLink>
           ))}
+          <NavLink className="sidebar-create" to="/properties/new">+ Nueva propiedad</NavLink>
         </nav>
 
         <div className="sidebar__footer">
           <span className="system-dot" aria-hidden="true" />
           <div>
             <strong>Demo local</strong>
-            <small>Datos 100% sintéticos</small>
+            <small>Datos ficticios</small>
           </div>
         </div>
       </aside>
@@ -44,7 +47,7 @@ export function AppShell() {
       <main className="main-content">
         <div className="mobile-brand">
           <span className="brand__mark" aria-hidden="true">AI</span>
-          <strong>Arriendate Intelligence</strong>
+          <strong>Arriendate</strong>
         </div>
         <Outlet />
       </main>

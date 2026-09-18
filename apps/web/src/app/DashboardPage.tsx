@@ -2,74 +2,112 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { PageHeader } from "../components/PageHeader";
 import { StatePanel } from "../components/StatePanel";
-import { getProperties } from "../lib/api";
+import { getOperationsWorkspace } from "../lib/api";
+
+const priorityOrder = { high: 0, medium: 1, low: 2 };
 
 export function DashboardPage() {
-  const inventory = useQuery({
-    queryKey: ["properties", "dashboard"],
-    queryFn: () => getProperties(),
+  const workspace = useQuery({
+    queryKey: ["operations-workspace"],
+    queryFn: getOperationsWorkspace,
   });
 
+  const centers = workspace.data?.centers ?? [];
+  const activeProperties = centers.filter((center) => center.property.commercial_status === "active").length;
+  const activeCampaigns = centers.reduce(
+    (total, center) => total + center.campaigns.filter((campaign) => campaign.status === "active").length,
+    0,
+  );
+  const publishedDestinations = centers.reduce(
+    (total, center) => total + center.distribution.filter((item) => item.latest_publication !== null).length,
+    0,
+  );
+  const readyToPublish = centers.reduce(
+    (total, center) => total + center.distribution.filter((item) => ["ready", "ready_to_repost"].includes(item.status)).length,
+    0,
+  );
+  const requiresAction = centers.reduce(
+    (total, center) => total + center.distribution.filter((item) => ["requires_action", "failed"].includes(item.status)).length,
+    0,
+  );
+  const openConversations = centers.reduce(
+    (total, center) => total + center.related_conversations.filter((item) => ["open", "needs_reply"].includes(item.status)).length,
+    0,
+  );
+  const actions = centers
+    .flatMap((center) => center.next_actions.map((action) => ({ action, property: center.property })))
+    .sort((left, right) => priorityOrder[left.action.priority] - priorityOrder[right.action.priority])
+    .slice(0, 8);
+
   return (
-    <div className="page-stack">
+    <div className="page-stack operations-dashboard">
       <PageHeader
-        eyebrow="Vista general"
-        title="Buenas decisiones empiezan con datos claros."
-        description="La primera base operativa ya recibe solicitudes y mantiene un inventario sintético verificable."
-        action={<Link className="button button--primary" to="/leads/new">Ingresar lead</Link>}
+        eyebrow="Operación comercial"
+        title="Tu cartera, publicaciones y consultas en un solo lugar."
+        description="Organiza propiedades, prepara contenido y avanza cada publicación desde una vista operativa."
+        action={<Link className="button button--primary" to="/properties/new">+ Nueva propiedad</Link>}
       />
 
-      <section className="metric-grid" aria-label="Resumen del workspace">
-        <article className="metric-card metric-card--accent">
-          <span className="metric-card__label">Inventario demo</span>
-          <strong>{inventory.data?.total ?? "—"}</strong>
-          <small>propiedades sintéticas</small>
-        </article>
-        <article className="metric-card">
-          <span className="metric-card__label">Flujo activo</span>
-          <strong>01</strong>
-          <small>captura y persistencia</small>
-        </article>
-        <article className="metric-card">
-          <span className="metric-card__label">Automatizaciones</span>
-          <strong>0</strong>
-          <small>ningún envío autónomo</small>
-        </article>
-      </section>
+      {workspace.data?.demo_mode ? (
+        <div className="demo-banner"><strong>Demo local</strong><span>Los datos sociales y conversaciones son ficticios.</span></div>
+      ) : null}
+      {workspace.isPending ? <StatePanel title="Preparando tu operación" message="Reuniendo propiedades, publicaciones y consultas…" /> : null}
+      {workspace.isError ? <StatePanel tone="error" title="No pudimos cargar el dashboard" message={workspace.error.message} /> : null}
 
-      <section className="dashboard-grid">
-        <article className="panel panel--dark">
-          <p className="eyebrow eyebrow--light">Flujo verificable</p>
-          <h2>Del mensaje original a requisitos estructurados.</h2>
-          <p>
-            La solicitud se guarda antes de la extracción. Cada intento queda trazado y los requisitos sólo
-            se persisten cuando superan la validación estricta del servidor.
-          </p>
-          <ol className="flow-list">
-            <li className="is-complete"><span>1</span> Captura del lead</li>
-            <li className="is-complete"><span>2</span> Persistencia original</li>
-            <li className="is-complete"><span>3</span> Extracción estructurada</li>
-            <li><span>4</span> Matching híbrido</li>
-          </ol>
-        </article>
+      {workspace.data ? (
+        <>
+          <section className="metric-grid metric-grid--operations" aria-label="Resumen operativo">
+            <Link className="metric-card metric-card--accent" to="/properties?status=active">
+              <span className="metric-card__label">Propiedades activas</span><strong>{activeProperties}</strong><small>en comercialización</small>
+            </Link>
+            <Link className="metric-card" to="/publications">
+              <span className="metric-card__label">Campañas activas</span><strong>{activeCampaigns}</strong><small>campañas en curso</small>
+            </Link>
+            <Link className="metric-card" to="/publications?view=published">
+              <span className="metric-card__label">Destinos publicados</span><strong>{publishedDestinations}</strong><small>con publicación registrada</small>
+            </Link>
+            <Link className="metric-card" to="/publications?view=ready">
+              <span className="metric-card__label">Listo para publicar</span><strong>{readyToPublish}</strong><small>incluye republicaciones</small>
+            </Link>
+            <Link className="metric-card metric-card--warning" to="/publications?view=action">
+              <span className="metric-card__label">Requiere acción</span><strong>{requiresAction}</strong><small>destinos por resolver</small>
+            </Link>
+            <Link className="metric-card" to="/inbox">
+              <span className="metric-card__label">Conversaciones abiertas</span><strong>{openConversations}</strong><small>abiertas o sin respuesta</small>
+            </Link>
+          </section>
 
-        <article className="panel">
-          <div className="panel__heading">
-            <div>
-              <p className="eyebrow">Estado operativo</p>
-              <h2>Base preparada</h2>
-            </div>
-            <span className="status-badge status-badge--available">Local</span>
-          </div>
-          <StatePanel
-            title="Sin actividad artificial"
-            message="El conteo de leads no se presenta hasta contar con su endpoint de listado. Puedes crear y abrir cada lead desde su confirmación."
-          />
-          <div className="panel__actions">
-            <Link className="text-link" to="/properties">Revisar inventario <span>→</span></Link>
-          </div>
-        </article>
-      </section>
+          <section className="dashboard-grid dashboard-grid--operations">
+            <article className="panel operations-actions-panel">
+              <div className="panel__heading">
+                <div><p className="eyebrow">Próximas acciones</p><h2>Lo que necesita tu atención</h2></div>
+                <span className="subtle-badge">Ordenadas por prioridad</span>
+              </div>
+              {actions.length ? (
+                <div className="dashboard-action-list">
+                  {actions.map(({ action, property }) => (
+                    <Link to={`/properties/${property.id}/command-center`} key={`${property.id}-${action.type}-${action.related_entity_id}`}>
+                      <span className={`action-priority action-priority--${action.priority}`} aria-hidden="true" />
+                      <span><strong>{property.title}</strong><small>{action.title}</small></span>
+                      <span className="dashboard-action-list__arrow">→</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : <StatePanel title="Operación al día" message="No hay acciones pendientes para las propiedades visibles." />}
+            </article>
+
+            <article className="panel portfolio-panel">
+              <p className="eyebrow">Cartera</p>
+              <h2>{workspace.data.properties.length} propiedades gestionadas</h2>
+              <p>Abre una propiedad para revisar su distribución, consultas e historial comercial.</p>
+              <div className="portfolio-panel__actions">
+                <Link className="button button--secondary" to="/properties">Ver propiedades</Link>
+                <Link className="text-link" to="/publications">Abrir cola de publicaciones →</Link>
+              </div>
+            </article>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }

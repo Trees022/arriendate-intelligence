@@ -34,6 +34,9 @@ class LeadService:
             raise ConflictError("La clave de idempotencia ya fue usada con otra solicitud")
         return lead
 
+    async def list(self, *, page: int, page_size: int) -> tuple[list[Lead], int]:
+        return await self.repository.list(page=page, page_size=page_size)
+
     async def get(self, lead_id: UUID) -> Lead:
         lead = await self.repository.get(lead_id)
         if not lead:

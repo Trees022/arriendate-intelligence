@@ -1,37 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
   getPropertyCommandCenter,
   markPublicationComplete,
   markPublicationRequiresAction,
+  resolveMediaUrl,
 } from "../../lib/api";
 import { formatPropertyPrice } from "../../lib/format";
-import type { DistributionItem, PropertyCommandCenter } from "../../lib/types";
-
-const channelLabels: Record<string, string> = {
-  facebook_page: "Facebook Page",
-  instagram_professional: "Instagram Professional",
-  facebook_group: "Facebook Group",
-  facebook_marketplace: "Facebook Marketplace",
-  portal_inmobiliario: "Portal Inmobiliario",
-  yapo: "Yapo",
-  whatsapp_catalog: "WhatsApp",
-  website: "Sitio web",
-  email: "Email",
-  generic: "Otro canal",
-};
-
-const statusLabels: Record<string, string> = {
-  ready: "Listo para publicar",
-  ready_to_repost: "Listo para republicar",
-  cooldown: "En cooldown",
-  requires_action: "Requiere acción",
-  failed: "Falló",
-  published: "Publicado",
-  not_scheduled: "Sin campaña",
-};
+import type { PropertyCommandCenter } from "../../lib/types";
+import { AssistedPublicationPanel } from "../operations/AssistedPublicationPanel";
+import {
+  campaignStatusLabels,
+  channelLabels,
+  commandCenterCover,
+  commercialStatusLabels,
+  distributionStatusLabels,
+  formatOperationsDate,
+} from "../operations/labels";
 
 const actionPriorityLabels = { high: "Ahora", medium: "Próximo", low: "Después" };
 const capabilityLabels: Record<string, string> = {
@@ -52,147 +38,8 @@ const availabilityLabels: Record<string, string> = {
   requires_connection: "Requiere conexión",
   assisted_only: "Sólo asistido",
 };
-const commercialStatusLabels: Record<string, string> = {
-  draft: "Borrador",
-  active: "Activa",
-  reserved: "Reservada",
-  closed: "Cerrada",
-  archived: "Archivada",
-};
-const campaignStatusLabels: Record<string, string> = {
-  draft: "Borrador",
-  active: "Activa",
-  paused: "Pausada",
-  completed: "Completada",
-  archived: "Archivada",
-};
-
-function formatDate(value: string | null) {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("es-CL", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
 function metricValue(value: number | null) {
   return value === null ? "No disponible" : new Intl.NumberFormat("es-CL").format(value);
-}
-
-function AssistedWorkflow({
-  item,
-  onComplete,
-  onRequiresAction,
-  pending,
-}: {
-  item: DistributionItem;
-  onComplete: (jobId: string, publicationUrl: string) => void;
-  onRequiresAction: (jobId: string) => void;
-  pending: boolean;
-}) {
-  const [publicationUrl, setPublicationUrl] = useState("");
-  const [copied, setCopied] = useState<string | null>(null);
-  const variant = item.package_variant;
-
-  const copyText = async (label: string, value: string) => {
-    await navigator.clipboard.writeText(value);
-    setCopied(label);
-    window.setTimeout(() => setCopied(null), 1600);
-  };
-
-  return (
-    <div className="assisted-workflow">
-      <div className="assisted-workflow__intro">
-        <div>
-          <strong>Kit de publicación preparado</strong>
-          <p>Arriendate organiza el contenido; tú confirmas la acción en la plataforma.</p>
-        </div>
-        {item.target.destination_url ? (
-          <a className="button button--secondary" href={item.target.destination_url} target="_blank" rel="noreferrer">
-            Abrir destino
-          </a>
-        ) : null}
-      </div>
-
-      {variant ? (
-        <div className="copy-grid">
-          <article className="copy-card">
-            <span>Titular</span>
-            <p>{variant.headline}</p>
-            <button className="text-button" type="button" onClick={() => copyText("headline", variant.headline)}>
-              {copied === "headline" ? "Copiado" : "Copiar titular"}
-            </button>
-          </article>
-          <article className="copy-card copy-card--wide">
-            <span>Texto</span>
-            <p className="copy-card__body">{variant.body}</p>
-            <button className="text-button" type="button" onClick={() => copyText("body", variant.body)}>
-              {copied === "body" ? "Copiado" : "Copiar texto"}
-            </button>
-          </article>
-          <article className="copy-card">
-            <span>Hechos verificados</span>
-            <ul>{variant.highlights.map((highlight) => <li key={highlight}>{highlight}</li>)}</ul>
-            <button
-              className="text-button"
-              type="button"
-              onClick={() => copyText("facts", variant.highlights.join("\n"))}
-            >
-              {copied === "facts" ? "Copiados" : "Copiar hechos"}
-            </button>
-          </article>
-        </div>
-      ) : (
-        <StatePanel title="Paquete no disponible" message="Genera y aprueba una variante para habilitar el kit." />
-      )}
-
-      <div className="prepared-media">
-        <strong>Fotos · orden preparado</strong>
-        {item.prepared_media.length ? (
-          <ol>
-            {item.prepared_media.map((media) => (
-              <li key={media.id}>
-                <a href={media.url} target="_blank" rel="noreferrer">{media.original_filename}</a>
-                {media.is_cover ? <span>Portada</span> : null}
-              </li>
-            ))}
-          </ol>
-        ) : <p>La propiedad todavía no tiene fotos preparadas.</p>}
-      </div>
-
-      {item.job ? (
-        <div className="completion-row">
-          <label>
-            <span>URL publicada</span>
-            <input
-              value={publicationUrl}
-              onChange={(event) => setPublicationUrl(event.target.value)}
-              placeholder="https://…"
-              inputMode="url"
-            />
-          </label>
-          <button
-            className="button button--primary"
-            type="button"
-            disabled={pending}
-            onClick={() => onComplete(item.job!.id, publicationUrl)}
-          >
-            Marcar completa
-          </button>
-          <button
-            className="button button--secondary"
-            type="button"
-            disabled={pending}
-            onClick={() => onRequiresAction(item.job!.id)}
-          >
-            Marcar requiere acción
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 function DistributionSection({ center }: { center: PropertyCommandCenter }) {
@@ -223,9 +70,9 @@ function DistributionSection({ center }: { center: PropertyCommandCenter }) {
                 <strong>{item.target.name}</strong>
                 <small>{channelLabels[item.target.channel_type]} · {item.target.execution_mode === "api" ? "API oficial" : "Flujo asistido"}</small>
               </span>
-              <span className={`operation-status operation-status--${item.status}`}>{statusLabels[item.status] ?? item.status}</span>
-              <span className="distribution-row__date"><small>Última publicación</small><strong>{formatDate(item.last_publication_at)}</strong></span>
-              <span className="distribution-row__date"><small>Próxima elegibilidad</small><strong>{formatDate(item.next_eligible_at)}</strong></span>
+              <span className={`operation-status operation-status--${item.status}`}>{distributionStatusLabels[item.status] ?? item.status}</span>
+              <span className="distribution-row__date"><small>Última publicación</small><strong>{formatOperationsDate(item.last_publication_at)}</strong></span>
+              <span className="distribution-row__date"><small>Próxima elegibilidad</small><strong>{formatOperationsDate(item.next_eligible_at)}</strong></span>
               <span className="disclosure-mark" aria-hidden="true">+</span>
             </summary>
             <div className="distribution-row__detail">
@@ -242,7 +89,7 @@ function DistributionSection({ center }: { center: PropertyCommandCenter }) {
                 <a className="publication-link" href={item.publication_url} target="_blank" rel="noreferrer">Ver publicación registrada</a>
               ) : null}
               {item.target.execution_mode === "assisted" || item.target.execution_mode === "manual" ? (
-                <AssistedWorkflow
+                <AssistedPublicationPanel
                   item={item}
                   pending={mutation.isPending || actionMutation.isPending}
                   onComplete={(jobId, publicationUrl) => mutation.mutate({ jobId, publicationUrl })}
@@ -278,6 +125,7 @@ export function PropertyCommandCenterPage() {
 
   const center = query.data;
   const property = center.property;
+  const cover = commandCenterCover(center);
   const metrics = [
     ["Comentarios", center.engagement.comments_count],
     ["Reacciones", center.engagement.reactions_count],
@@ -290,12 +138,21 @@ export function PropertyCommandCenterPage() {
     <div className="page-stack command-center">
       <Link className="back-link" to="/properties">← Volver a propiedades</Link>
       {center.demo_mode ? (
-        <div className="demo-banner"><strong>Modo demo determinístico</strong><span>Los datos sociales son fixtures; no provienen de Meta.</span></div>
+        <div className="demo-banner"><strong>Demo local</strong><span>Los datos sociales son ficticios; no provienen de Meta.</span></div>
       ) : null}
+      <nav className="command-tabs" aria-label="Secciones de la propiedad">
+        <a href="#actions">Próximas acciones</a>
+        <a href="#distribution">Distribución</a>
+        <a href="#engagement">Interacción</a>
+        <a href="#inbox">Conversaciones</a>
+        <a href="#history">Historial</a>
+      </nav>
       <header className="command-hero">
-        <div className="command-hero__photo" aria-hidden="true"><span>Sin foto de portada</span></div>
+        <div className="command-hero__photo">
+          {cover ? <img src={resolveMediaUrl(cover.url)} alt={`Portada de ${property.title}`} /> : <span>Sin foto de portada</span>}
+        </div>
         <div className="command-hero__content">
-          <p className="eyebrow">Property Command Center</p>
+          <p className="eyebrow">Centro de operación</p>
           <h1>{property.title}</h1>
           <p>{property.city} · {property.sector ?? "Sector por confirmar"}</p>
           <div className="command-hero__meta">
@@ -307,7 +164,7 @@ export function PropertyCommandCenterPage() {
         <Link className="button button--secondary" to={`/properties/${property.id}`}>Ver ficha completa</Link>
       </header>
 
-      <section className="next-actions">
+      <section className="next-actions" id="actions">
         <div className="section-heading">
           <div><p className="eyebrow">Próximas acciones</p><h2>Qué debería pasar ahora</h2></div>
           <span>Prioridad determinística</span>
@@ -329,8 +186,8 @@ export function PropertyCommandCenterPage() {
 
       <section className="command-section" id="engagement">
         <div className="section-heading">
-          <div><p className="eyebrow">Engagement</p><h2>Señales atribuibles a publicaciones</h2></div>
-          <span>Última captura {formatDate(center.engagement.last_captured_at)}</span>
+          <div><p className="eyebrow">Interacción</p><h2>Resultados atribuibles a publicaciones</h2></div>
+          <span>Última captura {formatOperationsDate(center.engagement.last_captured_at)}</span>
         </div>
         <div className="engagement-grid">
           {metrics.map(([label, value]) => (
@@ -342,9 +199,9 @@ export function PropertyCommandCenterPage() {
         <div className="comment-list">
           {center.recent_comments.map((comment) => (
             <article key={comment.id}>
-              <div><strong>{comment.author_display_name ?? "Autor no disponible"}</strong><span>{formatDate(comment.created_external_at)}</span></div>
+              <div><strong>{comment.author_display_name ?? "Autor no disponible"}</strong><span>{formatOperationsDate(comment.created_external_at)}</span></div>
               <p>{comment.body}</p>
-              <small>{comment.reply_status === "needs_reply" ? "Requiere respuesta" : "Gestionado"}{comment.is_demo ? " · Fixture" : ""}</small>
+              <small>{comment.reply_status === "needs_reply" ? "Requiere respuesta" : "Gestionado"}{comment.is_demo ? " · Demo" : ""}</small>
             </article>
           ))}
         </div>
@@ -360,7 +217,7 @@ export function PropertyCommandCenterPage() {
             {center.related_conversations.map((conversation) => (
               <article className="conversation-card" key={conversation.id}>
                 <div className="conversation-card__header">
-                  <div><strong>{conversation.channel_type === "messenger" ? "Messenger" : channelLabels[conversation.channel_type]}</strong><small>{formatDate(conversation.last_message_at)}</small></div>
+                  <div><strong>{conversation.channel_type === "messenger" ? "Messenger" : channelLabels[conversation.channel_type]}</strong><small>{formatOperationsDate(conversation.last_message_at)}</small></div>
                   <span className={`operation-status operation-status--${conversation.status}`}>{conversation.status === "needs_reply" ? "Requiere respuesta" : conversation.status}</span>
                 </div>
                 <div className="message-stack">
@@ -368,7 +225,7 @@ export function PropertyCommandCenterPage() {
                     <p className={`message message--${message.direction}`} key={message.id}>{message.body ?? "Mensaje sin texto"}</p>
                   ))}
                 </div>
-                <small>{conversation.lead_id ? "Vinculada a lead" : "Aún no promovida a lead"}{conversation.is_demo ? " · Fixture" : ""}</small>
+                <small>{conversation.lead_id ? "Vinculada a lead" : "Aún no promovida a lead"}{conversation.is_demo ? " · Demo" : ""}</small>
               </article>
             ))}
           </div>
@@ -384,7 +241,7 @@ export function PropertyCommandCenterPage() {
           {center.campaigns.map((campaign) => (
             <article key={campaign.id}>
               <span className="operation-status">{campaignStatusLabels[campaign.status]}</span>
-              <div><strong>{campaign.publications.length} publicaciones</strong><small>{campaign.jobs.length} trabajos · creada {formatDate(campaign.created_at)}</small></div>
+              <div><strong>{campaign.publications.length} publicaciones</strong><small>{campaign.jobs.length} trabajos · creada {formatOperationsDate(campaign.created_at)}</small></div>
             </article>
           ))}
         </div>
