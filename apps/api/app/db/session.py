@@ -27,7 +27,7 @@ class Database:
         self.url = normalize_database_url(database_url)
         if self.url.startswith("sqlite"):
             Path(REPOSITORY_ROOT / ".local").mkdir(parents=True, exist_ok=True)
-        connect_args = {"timeout": 15} if self.url.startswith("sqlite") else None
+        connect_args = {"timeout": 15} if self.url.startswith("sqlite") else {}
         self.engine: AsyncEngine = create_async_engine(
             self.url,
             pool_pre_ping=True,
