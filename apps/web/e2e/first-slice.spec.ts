@@ -12,6 +12,16 @@ test("lead extraction, hard constraints, and grounded semantic matches", async (
   await page.screenshot({ path: "../../.local/verified-inventory.png", fullPage: true });
   await page.getByRole("link", { name: /Departamento Los Castaños/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Departamento Los Castaños" })).toBeVisible();
+  await expect(page.getByText("Modo demo determinístico")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dónde está publicada y qué sigue" })).toBeVisible();
+  const marketplaceRow = page.locator(".distribution-row").filter({ hasText: "Facebook Marketplace" });
+  await marketplaceRow.getByText("Facebook Marketplace", { exact: true }).click();
+  await expect(marketplaceRow.getByText("Kit de publicación preparado")).toBeVisible();
+  await expect(marketplaceRow.getByRole("button", { name: "Copiar titular" })).toBeVisible();
+  await expect(marketplaceRow.getByRole("button", { name: "Marcar completa" })).toBeVisible();
+  await expect(page.getByText("No disponible", { exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: "../../.local/verified-command-center.png", fullPage: true });
+  await page.getByRole("link", { name: "Ver ficha completa" }).click();
   await expect(page.getByText("Admite mascotas")).toBeVisible();
 
   await page.getByRole("link", { name: "Nuevo lead" }).click();

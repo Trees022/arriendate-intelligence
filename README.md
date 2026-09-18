@@ -1,12 +1,21 @@
 # Arriendate Intelligence
 
-An internal real-estate operating layer that turns an unstructured lead into validated, traceable CRM data.
+An internal real-estate operating layer for property distribution, engagement, conversations and lead intelligence.
 
-> Current milestone: deterministic hard constraints plus semantic property ranking with pgvector.
+> Current milestone: Property Command Center with deterministic demo operations and provider-safe Meta boundaries.
 
-This repository is intentionally incremental. This milestone does **not** contain RAG, autonomous agents, n8n workflows, outbound messages, multitenancy, or quantum optimization.
+This repository is intentionally incremental. This milestone does **not** claim live Meta synchronization, autonomous posting, personal Facebook inbox access, multitenancy, or public SaaS readiness.
 
 ## Product flow
+
+```text
+one property -> one Command Center -> distribution -> engagement -> conversations
+             -> explicit lead attribution -> follow-up -> outcomes
+```
+
+The existing lead extraction and semantic matching flow remains intact. Property Operations adds reusable targets, versioned channel copy, assisted publishing, immutable publication history, cooldowns, engagement snapshots and nullable conversation attribution.
+
+The original lead flow remains:
 
 ```text
 original lead message → durable lead record → explicit human extraction action
@@ -21,6 +30,9 @@ The original request is stored before any AI call. A malformed, incomplete, refu
 ```mermaid
 flowchart LR
     Browser[React + TypeScript] -->|JSON /api| API[FastAPI]
+    API --> Command[Property Command Center service]
+    Command --> Actions[Deterministic next-action engine]
+    Command --> Integrations[Provider contracts + fixtures]
     API --> Extraction[Lead extraction service]
     Extraction --> Provider[StructuredGenerator protocol]
     Provider --> Responses[OpenAI-compatible Responses API]
@@ -37,7 +49,7 @@ flowchart LR
 - Prompts and raw model outputs are not stored in `ai_runs`; only a prompt version and sanitized metadata are persisted.
 - SQL under `supabase/migrations` is authoritative for PostgreSQL. SQLite is a zero-install local/test adapter.
 
-See [architecture decisions](docs/architecture.md), [matching contract](docs/matching.md), [AI guardrails](docs/ai-guardrails.md), [evaluation methodology](docs/evaluation.md), and the approved [implementation plan](docs/implementation-plan.md).
+See [Property Command Center](docs/property-command-center.md), [architecture decisions](docs/architecture.md), [matching contract](docs/matching.md), [AI guardrails](docs/ai-guardrails.md), and [evaluation methodology](docs/evaluation.md).
 
 ## Technology
 
@@ -56,6 +68,7 @@ apps/web/                 CRM-like React UI
 apps/api/app/ai/          schemas, prompts, provider contracts/adapters
 apps/api/app/embeddings/  provider-neutral embedding contracts/adapters
 apps/api/app/matching/    deterministic constraints and canonical texts
+apps/api/app/integrations/provider-neutral Meta/assisted boundaries and fixtures
 apps/api/app/evaluation/  extraction and matching evaluators
 apps/api/tests/           unit, provider-contract, evaluation and integration tests
 supabase/migrations/      authoritative PostgreSQL schema
@@ -163,8 +176,38 @@ security expectations, and limitations.
 | `POST` | `/api/leads/{id}/extract` | explicit structured extraction and run telemetry |
 | `POST` | `/api/leads/{id}/matches?top_k=3` | persist hard-gated semantic matching; `top_k` is 1-10 |
 | `GET` | `/api/leads/{id}/matches` | latest successful match run, or `not_run` |
-| `GET` | `/api/properties` | synthetic inventory with basic filters |
-| `GET` | `/api/properties/{id}` | synthetic property facts |
+| `GET` | `/api/properties` | inventory with filters (operation, type, price, commercial status) |
+| `POST` | `/api/properties` | create real property with commercial status, dimensions, reference code |
+| `GET` | `/api/properties/{id}` | structured property details |
+| `GET` | `/api/properties/{id}/command-center` | aggregated distribution, engagement, conversations and next actions |
+| `PATCH` | `/api/properties/{id}` | update operational fields, notes, dimensions, commercial status |
+| `POST` | `/api/properties/{id}/media` | upload photo (JPEG, PNG, WebP ≤ 10MB) |
+| `GET` | `/api/properties/{id}/media` | list media gallery ordered by position |
+| `PATCH` | `/api/properties/{id}/media/reorder` | update display order of gallery photos |
+| `PATCH` | `/api/properties/{id}/media/{media_id}` | set cover image |
+| `DELETE` | `/api/properties/{id}/media/{media_id}` | delete photo and remove from storage |
+| `POST` | `/api/properties/{id}/packages` | generate publication package with channel variants |
+| `GET` | `/api/properties/{id}/packages` | list publication packages for property |
+| `PATCH` | `/api/packages/{package_id}/approve` | approve publication package |
+| `GET` | `/api/publication-targets` | list configured publication targets |
+| `POST` | `/api/publication-targets` | create publication target (Facebook Group, Marketplace, Portal) |
+| `POST` | `/api/campaigns` | create distribution campaign with approved package and target IDs |
+| `GET` | `/api/campaigns/{id}` | campaign details and publication jobs status |
+| `POST` | `/api/campaigns/{id}/pause` | pause active campaign |
+| `POST` | `/api/campaigns/{id}/resume` | resume paused campaign |
+| `POST` | `/api/publication-jobs/{id}/publish` | mark job published (assisted/manual), record publication URL, start cooldown |
+| `POST` | `/api/publication-jobs/{id}/requires-action` | flag a job for operator attention without claiming success |
+| `POST` | `/api/publication-jobs/{id}/fail` | record a bounded, observable publication failure |
+| `POST` | `/api/publication-jobs/reconcile` | deterministic cooldown reconciliation tick (repost eligibility) |
+
+### Command Center demo
+
+With the default fixture seed enabled, start API and web, open **Propiedades**, then select the first
+property. Property cards route to `/properties/{id}/command-center`. The screen clearly labels the
+Page/Instagram data as fixtures and demonstrates two assisted Groups, assisted Marketplace, a
+cooldown, a ready repost, unavailable metrics, comments, Messenger messages and deterministic next
+actions. No Meta credentials or network calls are used. See
+[the authoritative M3 document](docs/property-command-center.md) for capabilities and limits.
 
 ## Evaluation and quality checks
 
@@ -223,6 +266,8 @@ npm.cmd run test:e2e
 - Extraction is a human-triggered action; no external communication is sent.
 - Browser rendering uses React text nodes, not injected HTML.
 - Direct browser database roles have no table privileges in the supplied migrations.
+- Facebook Groups and Marketplace cannot be configured as general API publishing targets.
+- Demo social data is explicitly marked as fixture data and never presented as a live sync.
 
 ## Known limitations
 
@@ -240,4 +285,4 @@ npm.cmd run test:e2e
   prerequisites; this internal milestone does not claim them.
 - Cost remains `null` unless both provider usage and current per-million prices are configured.
 - Authentication is not implemented. The app is intended for local/internal evaluation and is not ready for public deployment.
-- RAG, agents, n8n, outbound messaging, requirement relaxation, and later milestones are intentionally absent.
+- Live Meta OAuth, webhooks, outbound replies, a local browser runner, RAG and autonomous agents are intentionally absent.

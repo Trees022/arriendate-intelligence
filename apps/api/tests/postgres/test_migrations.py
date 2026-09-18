@@ -13,6 +13,8 @@ EXPECTED_MIGRATIONS = (
     "20260810120000_structured_lead_extraction.sql",
     "20260811120000_semantic_property_matching.sql",
     "20260812120000_matching_correctness_hardening.sql",
+    "20260916120000_property_operations_pilot.sql",
+    "20260918120000_property_command_center.sql",
 )
 
 EXPECTED_COLUMN_TYPES = {
@@ -55,6 +57,12 @@ EXPECTED_COLUMN_TYPES = {
         "embedding_updated_at": "timestamp with time zone",
         "created_at": "timestamp with time zone",
         "updated_at": "timestamp with time zone",
+        "reference_code": "text",
+        "source_notes": "text",
+        "address_text": "text",
+        "built_area_m2": "numeric(10,2)",
+        "land_area_m2": "numeric(10,2)",
+        "commercial_status": "text",
     },
     "lead_requirements": {
         "id": "uuid",
@@ -148,6 +156,11 @@ NULLABLE_COLUMNS = {
         "embedding_provider",
         "embedding_space_id",
         "embedding_updated_at",
+        "reference_code",
+        "source_notes",
+        "address_text",
+        "built_area_m2",
+        "land_area_m2",
     },
     "lead_requirements": {
         "max_budget",
@@ -350,6 +363,13 @@ def test_constraints_reject_invalid_rows(postgres_test_database: PostgresTestDat
     )
     _expect_sqlstate(
         postgres_test_database.dsn,
+        "insert into public.publication_targets "
+        "(name, channel_type, execution_mode) values "
+        "('Grupo inválido', 'facebook_group', 'api')",
+        "23514",
+    )
+    _expect_sqlstate(
+        postgres_test_database.dsn,
         "insert into public.leads (original_request, idempotency_key) "
         f"values ('Otra solicitud sintética válida.', '{duplicate_key}')",
         "23505",
@@ -460,10 +480,66 @@ def test_update_triggers_and_timestamp_defaults_execute(
     assert previous_updated_at == created_at
     assert current_updated_at is not None and current_updated_at[0] > previous_updated_at
     assert triggers == [
+        ("campaigns", "campaigns_set_updated_at"),
+        ("channel_accounts", "channel_accounts_set_updated_at"),
+        ("conversations", "conversations_set_updated_at"),
         ("lead_requirements", "lead_requirements_set_updated_at"),
         ("leads", "leads_set_updated_at"),
         ("properties", "properties_set_updated_at"),
+        ("publication_jobs", "publication_jobs_set_updated_at"),
+        ("publication_packages", "publication_packages_set_updated_at"),
+        ("publication_targets", "publication_targets_set_updated_at"),
     ]
     assert function is not None
     assert function[1] is False
     assert "SET search_path TO ''" in function[0]
+
+
+def test_property_command_center_schema_preserves_nullable_metrics_and_attribution(
+    postgres_test_database: PostgresTestDatabase,
+) -> None:
+    expected_tables = {
+        "channel_accounts",
+        "property_media",
+        "publication_packages",
+        "publication_package_variants",
+        "publication_targets",
+        "campaigns",
+        "campaign_targets",
+        "publication_jobs",
+        "publications",
+        "engagement_snapshots",
+        "publication_comments",
+        "conversations",
+        "messages",
+    }
+    with psycopg.connect(postgres_test_database.dsn) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "select tablename from pg_tables where schemaname = 'public'"
+            ).fetchall()
+        }
+        metric_columns = connection.execute(
+            "select column_name, is_nullable from information_schema.columns "
+            "where table_schema = 'public' and table_name = 'engagement_snapshots' "
+            "and column_name in ('comments_count', 'reactions_count', 'views_count', "
+            "'impressions_count', 'messages_count') order by column_name"
+        ).fetchall()
+        conversation_columns = {
+            row[0]
+            for row in connection.execute(
+                "select column_name from information_schema.columns "
+                "where table_schema = 'public' and table_name = 'conversations'"
+            ).fetchall()
+        }
+
+    assert expected_tables <= tables
+    assert metric_columns == [
+        ("comments_count", "YES"),
+        ("impressions_count", "YES"),
+        ("messages_count", "YES"),
+        ("reactions_count", "YES"),
+        ("views_count", "YES"),
+    ]
+    assert {"property_id", "publication_id", "lead_id"} <= conversation_columns

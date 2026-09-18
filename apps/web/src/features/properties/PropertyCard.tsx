@@ -4,7 +4,7 @@ import type { Property } from "../../lib/types";
 
 export function PropertyCard({ property }: { property: Property }) {
   return (
-    <Link className="property-card" to={`/properties/${property.id}`}>
+    <Link className="property-card" to={`/properties/${property.id}/command-center`}>
       <div className="property-card__topline">
         <span className={`status-badge status-badge--${property.availability_status}`}>
           {availabilityLabel[property.availability_status]}

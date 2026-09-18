@@ -38,6 +38,9 @@ describe("PropertyCard", () => {
 
     expect(screen.getByText("dorm.: por confirmar")).toBeInTheDocument();
     expect(screen.getByText("estac.: por confirmar")).toBeInTheDocument();
-    expect(screen.getByRole("link")).toHaveAttribute("href", `/properties/${incompleteProperty.id}`);
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      `/properties/${incompleteProperty.id}/command-center`,
+    );
   });
 });

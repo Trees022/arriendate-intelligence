@@ -11,23 +11,36 @@ from starlette.responses import Response
 
 from app.ai.contracts import StructuredGenerator
 from app.ai.factory import build_structured_generator
-from app.api.routes import health, leads, properties
+from app.api.routes import (
+    campaigns,
+    command_center,
+    health,
+    leads,
+    media,
+    properties,
+    publication_packages,
+    publication_targets,
+)
 from app.core.errors import AppError
 from app.core.settings import Settings, get_settings
 from app.db.seed import seed_demo_properties
 from app.db.session import Database
 from app.embeddings.contracts import EmbeddingProvider
 from app.embeddings.factory import build_embedding_provider
+from app.storage.contracts import PropertyMediaStorage
+from app.storage.local import LocalFilesystemStorage
 
 
 def create_app(
     settings: Settings | None = None,
     structured_generator: StructuredGenerator | None = None,
     embedding_provider: EmbeddingProvider | None = None,
+    media_storage: PropertyMediaStorage | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     generator = structured_generator or build_structured_generator(app_settings)
     embeddings = embedding_provider or build_embedding_provider(app_settings)
+    storage = media_storage or LocalFilesystemStorage()
     logging.basicConfig(
         level=app_settings.log_level,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -52,11 +65,12 @@ def create_app(
     application.state.settings = app_settings
     application.state.structured_generator = generator
     application.state.embedding_provider = embeddings
+    application.state.media_storage = storage
     application.add_middleware(
         CORSMiddleware,
         allow_origins=app_settings.cors_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Idempotency-Key", "X-Request-ID"],
     )
 
@@ -85,6 +99,11 @@ def create_app(
     application.include_router(health.router, prefix="/api")
     application.include_router(leads.router, prefix="/api")
     application.include_router(properties.router, prefix="/api")
+    application.include_router(command_center.router, prefix="/api")
+    application.include_router(media.router, prefix="/api")
+    application.include_router(publication_packages.router, prefix="/api")
+    application.include_router(publication_targets.router, prefix="/api")
+    application.include_router(campaigns.router, prefix="/api")
     return application
 
 

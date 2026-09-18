@@ -5,6 +5,7 @@ import type {
   LeadExtractionResult,
   LeadMatches,
   Property,
+  PropertyCommandCenter,
   PropertyFilters,
   PropertyList,
 } from "./types";
@@ -57,6 +58,27 @@ export function getProperties(filters: PropertyFilters = {}): Promise<PropertyLi
 
 export function getProperty(id: string): Promise<Property> {
   return request<Property>(`/properties/${id}`);
+}
+
+export function getPropertyCommandCenter(id: string): Promise<PropertyCommandCenter> {
+  return request<PropertyCommandCenter>(`/properties/${id}/command-center`);
+}
+
+export function markPublicationComplete(
+  jobId: string,
+  publicationUrl: string | null,
+): Promise<unknown> {
+  return request(`/publication-jobs/${jobId}/publish`, {
+    method: "POST",
+    body: JSON.stringify({ publication_url: publicationUrl || null }),
+  });
+}
+
+export function markPublicationRequiresAction(jobId: string, note: string): Promise<unknown> {
+  return request(`/publication-jobs/${jobId}/requires-action`, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  });
 }
 
 export function createLead(payload: LeadCreate, idempotencyKey: string): Promise<Lead> {

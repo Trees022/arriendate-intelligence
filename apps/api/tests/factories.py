@@ -11,6 +11,8 @@ from app.core.settings import Settings
 from app.embeddings.contracts import EmbeddingProvider
 from app.embeddings.providers.deterministic import DeterministicEmbeddingProvider
 from app.main import create_app
+from app.storage.contracts import PropertyMediaStorage
+from app.storage.local import LocalFilesystemStorage
 
 VALID_REQUIREMENTS: dict[str, Any] = {
     "operation_type": "rent",
@@ -40,6 +42,7 @@ async def running_test_client(
     *,
     generator: StructuredGenerator | None = None,
     embedding_provider: EmbeddingProvider | None = None,
+    media_storage: PropertyMediaStorage | None = None,
     database_url: str | None = None,
     raise_app_exceptions: bool = True,
     **settings_overrides: Any,
@@ -54,10 +57,12 @@ async def running_test_client(
     }
     settings_values.update(settings_overrides)
     settings = Settings(**settings_values)
+    storage = media_storage or LocalFilesystemStorage(base_dir=tmp_path / "media")
     app = create_app(
         settings,
         structured_generator=generator,
         embedding_provider=embedding_provider or DeterministicEmbeddingProvider(),
+        media_storage=storage,
     )
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app, raise_app_exceptions=raise_app_exceptions)

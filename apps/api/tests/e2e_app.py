@@ -60,7 +60,7 @@ settings = Settings(
         "sqlite+aiosqlite:///"
         + (REPOSITORY_ROOT / ".local" / "arriendate-e2e.db").as_posix()
     ),
-    seed_demo_data=e2e_database_url is None,
+    seed_demo_data=e2e_database_url is None or e2e_database_url.startswith("sqlite"),
     ai_input_cost_per_million=Decimal("1.00"),
     ai_output_cost_per_million=Decimal("6.00"),
 )

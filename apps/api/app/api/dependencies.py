@@ -8,6 +8,7 @@ from app.ai.contracts import StructuredGenerator
 from app.core.settings import Settings
 from app.db.session import Database
 from app.embeddings.contracts import EmbeddingProvider
+from app.storage.contracts import PropertyMediaStorage
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -34,6 +35,12 @@ def get_embedding_provider(request: Request) -> EmbeddingProvider:
     return provider
 
 
+def get_media_storage(request: Request) -> PropertyMediaStorage:
+    storage: PropertyMediaStorage = request.app.state.media_storage
+    return storage
+
+
 GeneratorDep = Annotated[StructuredGenerator, Depends(get_structured_generator)]
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 EmbeddingProviderDep = Annotated[EmbeddingProvider, Depends(get_embedding_provider)]
+StorageDep = Annotated[PropertyMediaStorage, Depends(get_media_storage)]
