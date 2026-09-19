@@ -1,14 +1,21 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../lib/api";
-import type { Property, PropertyMedia, PublicationPackage, PublicationTarget } from "../../lib/types";
+import type {
+  Property,
+  PropertyAutofillResponse,
+  PropertyMedia,
+  PublicationPackage,
+  PublicationTarget,
+} from "../../lib/types";
 import { NewPropertyWizardPage } from "./NewPropertyWizardPage";
 
 vi.mock("../../lib/api", () => ({
   approvePublicationPackage: vi.fn(),
+  autofillProperty: vi.fn(),
   createCampaign: vi.fn(),
   createProperty: vi.fn(),
   createPublicationTarget: vi.fn(),
@@ -99,7 +106,9 @@ const target: PublicationTarget = {
 };
 
 function renderWizard() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/properties/new"]}>
@@ -112,14 +121,47 @@ function renderWizard() {
   );
 }
 
+function autofillResponse(overrides: Partial<PropertyAutofillResponse["draft"]> = {}): PropertyAutofillResponse {
+  return {
+    draft: {
+      operation_type: "rent",
+      property_type: "house",
+      title: null,
+      description: null,
+      price: null,
+      currency: null,
+      city: null,
+      sector: null,
+      address_text: null,
+      bedrooms: null,
+      bathrooms: null,
+      parking_spaces: null,
+      built_area_m2: null,
+      land_area_m2: null,
+      pet_policy: null,
+      furnished: null,
+      amenities: [],
+      ...overrides,
+    },
+    filled_fields: [],
+    review_fields: [],
+    provider: "fixture",
+    model: "fixture",
+  };
+}
+
 describe("NewPropertyWizardPage", () => {
   let media: PropertyMedia[];
 
   beforeEach(() => {
     media = [];
+    vi.mocked(api.autofillProperty).mockReset();
     vi.mocked(api.createProperty).mockReset().mockResolvedValue(property);
     vi.mocked(api.getPropertyMedia).mockReset().mockImplementation(async () => media);
-    vi.mocked(api.uploadPropertyMedia).mockReset().mockImplementation(async () => { media = [uploadedMedia]; return uploadedMedia; });
+    vi.mocked(api.uploadPropertyMedia).mockReset().mockImplementation(async () => {
+      media = [uploadedMedia];
+      return uploadedMedia;
+    });
     vi.mocked(api.deletePropertyMedia).mockReset().mockResolvedValue(undefined);
     vi.mocked(api.reorderPropertyMedia).mockReset().mockResolvedValue([uploadedMedia]);
     vi.mocked(api.setPropertyCover).mockReset().mockResolvedValue(uploadedMedia);
@@ -133,35 +175,99 @@ describe("NewPropertyWizardPage", () => {
     });
   });
 
-  it("crea propiedad, carga fotos, aprueba contenido, selecciona distribución y lanza la campaña", async () => {
+  it("crea una propiedad y llega al centro de operación en cuatro pasos", async () => {
     const user = userEvent.setup();
     renderWizard();
 
-    await user.type(screen.getByPlaceholderText("Ej. Casa luminosa en Castro centro"), property.title);
-    await user.type(screen.getByPlaceholderText("Describe sólo características verificables de la propiedad."), property.description);
-    await user.type(screen.getByPlaceholderText("650000"), "720000");
-    await user.type(screen.getByPlaceholderText("Castro"), "Castro");
-    await user.click(screen.getByRole("button", { name: "Guardar y continuar" }));
+    await user.type(screen.getByPlaceholderText("Ej. Departamento en Castro centro"), property.title);
+    await user.type(screen.getByRole("textbox", { name: "Precio" }), "720000");
+    await user.type(screen.getByLabelText("Comuna o ciudad"), "Castro");
+    await user.click(screen.getByRole("button", { name: "Guardar y seguir" }));
 
-    expect(await screen.findByRole("heading", { name: "Fotografías" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Fotos" })).toBeInTheDocument();
     const file = new File(["imagen"], "fachada.jpg", { type: "image/jpeg" });
-    await user.upload(screen.getByLabelText(/Seleccionar fotografías/), file);
+    await user.upload(screen.getByLabelText(/Agregar fotos/), file);
     expect(await screen.findByText("fachada.jpg")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Continuar con contenido" }));
+    await user.click(screen.getByRole("button", { name: "Seguir a publicación" }));
 
-    await user.click(screen.getByRole("button", { name: "Generar contenido" }));
+    await user.click(screen.getByRole("button", { name: "Generar publicación" }));
     expect(await screen.findByText("Casa en arriendo en Castro")).toBeInTheDocument();
-    expect(screen.getByText("Verificar las reglas del grupo.")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Aprobar contenido y continuar" }));
+    await user.click(screen.getByRole("button", { name: "Aprobar y seguir" }));
 
-    expect(await screen.findByRole("heading", { name: "Destinos de publicación" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Destinos" })).toBeInTheDocument();
     await user.click(screen.getByRole("checkbox", { name: /Corredores de Castro/ }));
-    await user.click(screen.getByRole("button", { name: "Revisar lanzamiento" }));
-    expect(await screen.findByRole("heading", { name: "Todo listo para lanzar" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Activar propiedad y lanzar campaña" }));
+    await user.click(screen.getByRole("button", { name: "Iniciar campaña" }));
 
     expect(await screen.findByRole("heading", { name: "Centro abierto" })).toBeInTheDocument();
     expect(api.createCampaign).toHaveBeenCalledWith(property.id, publicationPackage.id, [target.id]);
     await waitFor(() => expect(api.updateProperty).toHaveBeenCalledWith(property.id, { commercial_status: "active" }));
+  });
+
+  it("oculta los campos residenciales al elegir terreno", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.selectOptions(screen.getByLabelText("Tipo de propiedad"), "land");
+
+    expect(screen.queryByLabelText("Dormitorios")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Baños")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Superficie construida")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Superficie de terreno")).toBeInTheDocument();
+  });
+
+  it("no muestra superficie de terreno para un departamento", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.selectOptions(screen.getByLabelText("Tipo de propiedad"), "apartment");
+
+    expect(screen.getByLabelText("Dormitorios")).toBeInTheDocument();
+    expect(screen.getByLabelText("Superficie construida")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Superficie de terreno")).not.toBeInTheDocument();
+  });
+
+  it("conserva una edición manual cuando la sugerencia de IA es distinta", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.autofillProperty).mockResolvedValue(autofillResponse({
+      title: "Casa sugerida", price: 700000, city: "Castro",
+    }));
+    renderWizard();
+
+    const title = screen.getByPlaceholderText("Ej. Departamento en Castro centro");
+    await user.type(title, "Casa confirmada por corredor");
+    await user.type(screen.getByRole("textbox", { name: "Información de la propiedad" }), "Se arrienda una casa en Castro por $700.000 al mes.");
+    await user.click(screen.getByRole("button", { name: "Autocompletar con IA" }));
+
+    expect(await screen.findByText(/Ya habías escrito/)).toBeInTheDocument();
+    expect(title).toHaveValue("Casa confirmada por corredor");
+    expect(screen.getByRole("textbox", { name: "Precio" })).toHaveValue("700.000");
+    await user.click(screen.getByRole("button", { name: /Usar “Casa sugerida”/ }));
+    expect(title).toHaveValue("Casa sugerida");
+  });
+
+  it("deja vacíos los datos que no fueron encontrados", async () => {
+    const user = userEvent.setup();
+    const response = autofillResponse({
+      property_type: "apartment", city: "Castro",
+    });
+    response.review_fields = ["title", "price"];
+    vi.mocked(api.autofillProperty).mockResolvedValue(response);
+    renderWizard();
+
+    await user.type(screen.getByRole("textbox", { name: "Información de la propiedad" }), "Se arrienda departamento en Castro. Consultar detalles.");
+    await user.click(screen.getByRole("button", { name: "Autocompletar con IA" }));
+
+    expect(await screen.findByText("Revisa o completa")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Ej. Departamento en Castro centro")).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Precio" })).toHaveValue("");
+    expect(screen.getByLabelText("Comuna o ciudad")).toHaveValue("Castro");
+  });
+
+  it("mantiene navegación de cuatro pasos y teclados numéricos útiles en móvil", () => {
+    renderWizard();
+
+    const progress = screen.getByRole("list", { name: "Progreso del registro" });
+    expect(within(progress).getAllByRole("listitem")).toHaveLength(4);
+    expect(screen.getByRole("textbox", { name: "Precio" })).toHaveAttribute("inputmode", "numeric");
   });
 });

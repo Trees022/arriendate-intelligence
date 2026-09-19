@@ -25,13 +25,14 @@ def build_property_canonical_text(
     furnished: bool | None,
     amenities: list[str],
 ) -> str:
-    known_features = [
-        title,
-        description,
-        f"Operación: {operation_type}",
-        f"Tipo: {property_type}",
-        f"Ciudad: {city}",
-    ]
+    known_features = [value for value in (title, description) if value]
+    known_features.extend(
+        [
+            f"Operación: {operation_type}",
+            f"Tipo: {property_type}",
+            f"Ciudad: {city}",
+        ]
+    )
     if sector:
         known_features.append(f"Sector: {sector}")
     if bedrooms is not None:
@@ -78,9 +79,10 @@ class PropertyService:
         )
 
     async def create(self, payload: PropertyCreate) -> Property:
+        description = payload.description.strip() or payload.title
         canonical_text = build_property_canonical_text(
             title=payload.title,
-            description=payload.description,
+            description=description,
             operation_type=payload.operation_type.value,
             property_type=payload.property_type,
             city=payload.city,
@@ -94,7 +96,7 @@ class PropertyService:
         )
         record: dict[str, object] = {
             "title": payload.title,
-            "description": payload.description,
+            "description": description,
             "operation_type": payload.operation_type.value,
             "property_type": payload.property_type,
             "city": payload.city,
@@ -128,6 +130,9 @@ class PropertyService:
     async def update(self, property_id: UUID, payload: PropertyUpdate) -> Property:
         prop = await self.get(property_id)
         data = payload.model_dump(exclude_unset=True)
+
+        if "description" in data and not data["description"].strip():
+            data["description"] = data.get("title", prop.title)
 
         # Convert Enum fields to values
         if "operation_type" in data and data["operation_type"] is not None:

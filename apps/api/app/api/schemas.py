@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
+from app.ai.property_autofill import PropertyAutofillDraft
 from app.ai.schemas import (
     MissingInformation,
     RequestedCurrency,
@@ -146,7 +147,7 @@ class PropertyCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str = Field(min_length=3, max_length=180)
-    description: str = Field(min_length=5, max_length=10_000)
+    description: str = Field(default="", max_length=10_000)
     operation_type: OperationType
     property_type: str = Field(min_length=2, max_length=40)
     city: str = Field(min_length=2, max_length=100)
@@ -179,11 +180,32 @@ class PropertyCreate(BaseModel):
         return self
 
 
+class PropertyAutofillRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_text: str = Field(min_length=20, max_length=10_000)
+
+    @field_validator("source_text")
+    @classmethod
+    def reject_blank_source_text(cls, value: str) -> str:
+        if len(value.strip()) < 20:
+            raise ValueError("La descripción debe contener al menos 20 caracteres útiles")
+        return value
+
+
+class PropertyAutofillResponse(BaseModel):
+    draft: PropertyAutofillDraft
+    filled_fields: list[str]
+    review_fields: list[str]
+    provider: str
+    model: str
+
+
 class PropertyUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str | None = Field(default=None, min_length=3, max_length=180)
-    description: str | None = Field(default=None, min_length=5, max_length=10_000)
+    description: str | None = Field(default=None, max_length=10_000)
     operation_type: OperationType | None = None
     property_type: str | None = Field(default=None, min_length=2, max_length=40)
     city: str | None = Field(default=None, min_length=2, max_length=100)

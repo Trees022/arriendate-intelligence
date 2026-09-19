@@ -7,6 +7,7 @@ import type {
   LeadMatches,
   OperationsWorkspace,
   Property,
+  PropertyAutofillResponse,
   PropertyCommandCenter,
   PropertyCreateInput,
   PropertyFilters,
@@ -81,6 +82,13 @@ export function createProperty(payload: PropertyCreateInput): Promise<Property> 
   return request<Property>("/properties", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function autofillProperty(sourceText: string): Promise<PropertyAutofillResponse> {
+  return request<PropertyAutofillResponse>("/properties/autofill", {
+    method: "POST",
+    body: JSON.stringify({ source_text: sourceText }),
   });
 }
 

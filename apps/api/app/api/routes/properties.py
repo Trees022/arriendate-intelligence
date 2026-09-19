@@ -2,8 +2,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 
-from app.api.dependencies import SessionDep
+from app.api.dependencies import GeneratorDep, SessionDep
 from app.api.schemas import (
+    PropertyAutofillRequest,
+    PropertyAutofillResponse,
     PropertyCreate,
     PropertyListResponse,
     PropertyResponse,
@@ -11,8 +13,37 @@ from app.api.schemas import (
 )
 from app.domain.enums import AvailabilityStatus, CommercialStatus, OperationType
 from app.services.properties import PropertyService
+from app.services.property_autofill import PropertyAutofillService
 
 router = APIRouter(prefix="/properties", tags=["properties"])
+
+_AUTOFILL_REVIEW_FIELDS = ("operation_type", "property_type", "title", "price", "city")
+
+
+@router.post("/autofill", response_model=PropertyAutofillResponse)
+async def autofill_property(
+    payload: PropertyAutofillRequest,
+    generator: GeneratorDep,
+) -> PropertyAutofillResponse:
+    draft, provider, model = await PropertyAutofillService(generator).extract(
+        payload.source_text
+    )
+    draft_values = draft.model_dump()
+    filled_fields = [
+        field
+        for field, value in draft_values.items()
+        if value is not None and value != []
+    ]
+    review_fields = [
+        field for field in _AUTOFILL_REVIEW_FIELDS if draft_values.get(field) is None
+    ]
+    return PropertyAutofillResponse(
+        draft=draft,
+        filled_fields=filled_fields,
+        review_fields=review_fields,
+        provider=provider,
+        model=model,
+    )
 
 
 @router.get("", response_model=PropertyListResponse)

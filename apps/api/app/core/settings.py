@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dimension: Literal[1536] = 1536
     embedding_timeout_seconds: float = Field(default=30, gt=0, le=300)
+    meta_provider_mode: Literal["disabled", "fixture"] = "fixture"
 
 
 @lru_cache

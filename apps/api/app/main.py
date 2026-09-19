@@ -27,6 +27,7 @@ from app.db.seed import seed_demo_properties
 from app.db.session import Database
 from app.embeddings.contracts import EmbeddingProvider
 from app.embeddings.factory import build_embedding_provider
+from app.integrations.meta import MetaProviderBoundary, build_meta_provider_boundary
 from app.storage.contracts import PropertyMediaStorage
 from app.storage.local import LocalFilesystemStorage
 
@@ -36,11 +37,15 @@ def create_app(
     structured_generator: StructuredGenerator | None = None,
     embedding_provider: EmbeddingProvider | None = None,
     media_storage: PropertyMediaStorage | None = None,
+    meta_boundary: MetaProviderBoundary | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     generator = structured_generator or build_structured_generator(app_settings)
     embeddings = embedding_provider or build_embedding_provider(app_settings)
     storage = media_storage or LocalFilesystemStorage()
+    social_boundary = meta_boundary or build_meta_provider_boundary(
+        app_settings.meta_provider_mode
+    )
     logging.basicConfig(
         level=app_settings.log_level,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -66,6 +71,7 @@ def create_app(
     application.state.structured_generator = generator
     application.state.embedding_provider = embeddings
     application.state.media_storage = storage
+    application.state.meta_boundary = social_boundary
     application.add_middleware(
         CORSMiddleware,
         allow_origins=app_settings.cors_origins,

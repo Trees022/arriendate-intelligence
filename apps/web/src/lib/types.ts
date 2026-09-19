@@ -181,6 +181,42 @@ export interface PropertyCreateInput {
   amenities: string[];
 }
 
+export type WizardPropertyType =
+  | "house"
+  | "apartment"
+  | "land"
+  | "commercial"
+  | "office"
+  | "warehouse";
+
+export interface PropertyAutofillDraft {
+  operation_type: OperationType | null;
+  property_type: WizardPropertyType | null;
+  title: string | null;
+  description: string | null;
+  price: number | null;
+  currency: "CLP" | "UF" | "USD" | null;
+  city: string | null;
+  sector: string | null;
+  address_text: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  parking_spaces: number | null;
+  built_area_m2: number | null;
+  land_area_m2: number | null;
+  pet_policy: PetPolicy | null;
+  furnished: boolean | null;
+  amenities: string[];
+}
+
+export interface PropertyAutofillResponse {
+  draft: PropertyAutofillDraft;
+  filled_fields: string[];
+  review_fields: string[];
+  provider: string;
+  model: string;
+}
+
 export type PropertyUpdateInput = Partial<PropertyCreateInput> & {
   availability_status?: AvailabilityStatus;
 };
